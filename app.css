@@ -200,16 +200,55 @@ body.shop #shop{display:flex}
   .goods{width:15vmin;height:15vmin;font-size:10vmin}
 }
 
-/* ===== さいしょの「はじめる」画面（ブラウザは最初にタップしないと音が出ないため） ===== */
-#start{
-  position:fixed; inset:0; z-index:100; display:grid; place-items:center;
-  background:var(--bg);
+/* ===== ホーム画面 ===== */
+#home{
+  display:none; position:fixed; inset:0; z-index:20; background:var(--bg);
+  flex-direction:column; align-items:center; justify-content:center;
+  gap:3vmin; padding:3vmin;
 }
-#startInner{text-align:center}
-#startTitle{font-size:7vmin;font-weight:800;color:var(--accent);margin-bottom:5vmin;line-height:1.3}
-#startBtn{
-  border:none;border-radius:6vmin;background:var(--accent);color:#fff;
-  font-family:inherit;font-weight:800;font-size:7vmin;padding:3.4vmin 9vmin;
-  box-shadow:0 1.2vmin 0 #e07a33;
+body.home #home{display:flex}
+body.home #app{display:none}
+
+#homeTitle{margin:0;font-size:6vmin;font-weight:800;color:#a2917c;letter-spacing:.3vmin}
+
+#homeCards{
+  display:flex; gap:3vmin; width:100%; max-width:160vmin;
+  align-items:stretch; justify-content:center;
 }
-#startBtn:active{transform:translateY(.8vmin);box-shadow:0 .4vmin 0 #e07a33}
+.hcard{
+  flex:1 1 0; min-width:0; border:none; border-radius:5vmin;
+  font-family:inherit; color:#fff; padding:4vmin 2vmin;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1.4vmin;
+}
+.hcard .hicon{font-size:16vmin;line-height:1}
+.hcard .hlabel{font-size:6.5vmin;font-weight:800;line-height:1}
+.hcard[data-mode=write]{background:var(--accent); box-shadow:0 1.4vmin 0 #e07a33}
+.hcard[data-mode=quiz]{background:var(--accent2);box-shadow:0 1.4vmin 0 #3a86d6}
+.hcard[data-mode=shop]{background:var(--ok);     box-shadow:0 1.4vmin 0 #34a35c}
+.hcard:active{transform:translateY(.8vmin)}
+.hcard[data-mode=write]:active{box-shadow:0 .6vmin 0 #e07a33}
+.hcard[data-mode=quiz]:active {box-shadow:0 .6vmin 0 #3a86d6}
+.hcard[data-mode=shop]:active {box-shadow:0 .6vmin 0 #34a35c}
+
+#homeSpeak{
+  border:none; background:#fff0e0; width:12vmin; height:12vmin; border-radius:50%;
+  font-size:6vmin; display:grid; place-items:center; box-shadow:0 .6vmin 0 #e8dfd2;
+}
+#homeSpeak:active{transform:translateY(.5vmin);box-shadow:0 .1vmin 0 #e8dfd2}
+
+@media (orientation:portrait){
+  #homeCards{flex-direction:column; max-width:none}
+  .hcard{flex-direction:row; gap:5vmin; padding:3vmin 4vmin; justify-content:flex-start}
+  .hcard .hicon{font-size:12vmin}
+  .hcard .hlabel{font-size:8vmin}
+  #homeTitle{font-size:7vmin}
+}
+
+/* ===== おうちボタン（各モード） ===== */
+#modes{justify-content:flex-start}
+#modes #homeBtn{
+  flex:0 0 auto; width:11vmin; height:11vmin; padding:0; border-radius:50%;
+  border:none; background:#f6efe4; color:inherit; font-size:5.4vmin;
+  display:grid; place-items:center; box-shadow:0 .5vmin 0 #e8dfd2;
+}
+#modes #homeBtn:active{transform:translateY(.5vmin);box-shadow:0 .1vmin 0 #e8dfd2}
