@@ -70,6 +70,7 @@ function bbox(sh) {
 function fit() {
   const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
   const r = cv.getBoundingClientRect();
+  if (r.width < 2 || r.height < 2) return;   // ホーム表示中は #app が非表示なので何もしない
   cv.width = Math.round(r.width*dpr); cv.height = Math.round(r.height*dpr);
   cfx.width = Math.round(window.innerWidth*dpr); cfx.height = Math.round(window.innerHeight*dpr);
   cfxc.setTransform(dpr,0,0,dpr,0,0);
@@ -170,7 +171,10 @@ function draw() {
     ctx.restore();
   }
 }
-function loop(){ if (!drawing && strokeI < shape().length && cpI === 0) draw(); requestAnimationFrame(loop); }
+function loop(){
+  if (!atHome() && !drawing && strokeI < shape().length && cpI === 0) draw();
+  requestAnimationFrame(loop);
+}
 
 // ===== 音 =====
 let AC = null;
@@ -226,7 +230,6 @@ function stopSpeak() {
 function speak(names, opts = {}) {
   if (typeof opts === 'number') opts = { delay: opts };
   const { delay = 0, onStep, onDone } = opts;
-  if (!started) return;              // ブラウザは最初のタップまで音を鳴らせない
   stopSpeak();
   const my = speakToken;
   const list = names.filter(Boolean);
@@ -256,39 +259,6 @@ function speak(names, opts = {}) {
 function pickPraise() {
   let i; do { i = Math.floor(Math.random()*PRAISE.length); } while (PRAISE.length > 1 && i === lastPraise);
   lastPraise = i; return PRAISE[i];
-}
-
-// ===== 「はじめる」を押してから音を使う（ブラウザ対策）=====
-// ブラウザは、ユーザーが一度画面を触るまで音を鳴らせない決まりがある。
-// アプリ(WebView)では気にならないが、URLで開くときはこれが要る。
-const VOICE_LIST = [
-  '0','1','2','3','4','5','6','7','8','9','10',
-  'yatta','yatta1','yatta2','yatta3','yatta4','yatta5','yatta6',
-  'b_mae','b_tsugi','b_mouichido',
-  'p_kaku','p_dore','p_ikutsu','p_oshii',
-  'm_kaku','m_erabu','m_omise',
-  'g_dekita','g_kazoete','g_kago','g_ooi','g_sukunai','g_chigau',
-  'it_ringo','it_mikan','it_ichigo','it_cookie',
-  'ko1','ko2','ko3','ko4','ko5','ko6','ko7','ko8','ko9','ko10',
-];
-let started = false;
-
-function prefetchVoices(list) {
-  list.forEach(n => { try { audioOf(n).load(); } catch(e){} });
-}
-function startApp() {
-  if (started) return;
-  started = true;
-  try { const a = ac(); if (a.state === 'suspended') a.resume(); } catch(e){}
-
-  // よく使う声を先に、残りは少し遅らせて読み込む（最初の1声を待たせないため）
-  prefetchVoices(VOICE_LIST.slice(0, 18));
-  setTimeout(() => prefetchVoices(VOICE_LIST.slice(18)), 1500);
-
-  const s = document.getElementById('start');
-  if (s) s.parentNode.removeChild(s);
-  fit();
-  speak([cur(), 'p_kaku'], 350);
 }
 
 // ===== 出題 =====
@@ -477,9 +447,6 @@ function setMode(mode, intro) {
   shopOn = (mode === 'shop');
   document.body.classList.toggle('quiz', quizOn);
   document.body.classList.toggle('shop', shopOn);
-  $('#mWrite').classList.toggle('on', mode === 'write');
-  $('#mQuiz').classList.toggle('on', quizOn);
-  $('#mShop').classList.toggle('on', shopOn);
   if (!quizOn) document.body.classList.remove('qsound','qdots');
   if (quizOn)      { qN = QUIZ.min; qStreak = 0; newQuestion(intro); }
   else if (shopOn) { newOrder(intro); }
@@ -585,13 +552,36 @@ function checkOrder() {
       clear();
       const n = items.length;
       if (n === shopTarget) {
-        celebrate(() => newOrder());
+        celebrate(() => { if (shopOn) newOrder(); });
       } else {
         speak([n > shopTarget ? 'g_ooi' : 'g_sukunai', 'g_chigau'],
               { onDone: () => { shopLock = false; $('#done').disabled = false; } });
       }
     }
   });
+}
+
+// ===== ホーム画面 =====
+// 追加録音（まだ無ければ自動で無音スキップされる）
+//   g_nanishite … 「なにを して あそぶ？」
+//   b_ouchi     … 「おうちに もどる」
+const V_HOME = 'g_nanishite', V_BACK = 'b_ouchi';
+const MODE_VOICE = { write:'m_kaku', quiz:'m_erabu', shop:'m_omise' };
+
+const atHome = () => document.body.classList.contains('home');
+
+function showHome(intro) {
+  stopSpeak();
+  quizOn = false; shopOn = false; dragEl = null;
+  document.body.classList.remove('quiz','shop','qsound','qdots');
+  document.body.classList.add('home');
+  speak([...(intro||[]), V_HOME], 120);
+}
+
+function enterMode(mode) {
+  ac();                                   // 最初のタップで音を有効化
+  document.body.classList.remove('home'); // 先に表示してから fit() させる
+  setMode(mode, [MODE_VOICE[mode]]);
 }
 
 // ===== ナビ =====
@@ -611,9 +601,10 @@ $('#again').addEventListener('click', () => {
 });
 $('#target').addEventListener('click', () => { if (shopOn) sayOrder(); else if (!quizOn) speak([cur(), 'p_kaku']); });
 $('#bigSpeak').addEventListener('click', e => { e.stopPropagation(); speak([qAnswer, 'p_dore']); });
-$('#mWrite').addEventListener('click', () => { ac(); setMode('write', ['m_kaku']); });
-$('#mQuiz').addEventListener('click',  () => { ac(); setMode('quiz',  ['m_erabu']); });
-$('#mShop').addEventListener('click',  () => { ac(); setMode('shop',  ['m_omise']); });
+document.querySelectorAll('.hcard').forEach(b =>
+  b.addEventListener('click', () => enterMode(b.dataset.mode)));
+$('#homeSpeak').addEventListener('click', () => { ac(); speak([V_HOME]); });
+$('#homeBtn').addEventListener('click', () => { ac(); showHome([V_BACK]); });
 $('#done').addEventListener('click', checkOrder);
 window.addEventListener('pointermove', onGoodMove);
 window.addEventListener('pointerup', onGoodUp);
@@ -621,10 +612,11 @@ window.addEventListener('pointercancel', onGoodUp);
 window.addEventListener('resize', fit);
 window.addEventListener('orientationchange', () => setTimeout(fit, 250));
 
-const startEl = $('#start'), startBtn = $('#startBtn');
-if (startBtn) startBtn.addEventListener('click', startApp);
-if (startEl)  startEl.addEventListener('click', startApp);
-
-renderStars(); setTarget(); loop();
-if (!startEl) startApp();   // 「はじめる」画面が無いときは、そのまま始める
+renderStars(); loop();
+showHome();
+// 起動直後は音が鳴らせないことがあるので、最初のタップでもう一度だけ声をかける
+document.addEventListener('pointerdown', function once() {
+  document.removeEventListener('pointerdown', once);
+  ac();
+}, { once:true });
 })();
