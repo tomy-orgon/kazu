@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>かずを かこう</title>
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#fff8ee">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="icon" href="favicon.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div id="start">
+  <div id="startInner">
+    <div id="startTitle">かずを かこう</div>
+    <button id="startBtn">▶ はじめる</button>
+  </div>
+</div>
+<div id="app">
+  <div id="side">
+    <div id="modes">
+      <button id="mWrite" class="on">かく</button>
+      <button id="mQuiz">えらぶ</button>
+      <button id="mShop">おみせ</button>
+    </div>
+    <div class="panel" id="target">
+      <div id="targetNum">1</div>
+      <div id="targetDots"></div>
+      <div id="orderItem"></div>
+      <button id="speak" aria-label="よみあげ">🔊</button>
+      <button id="bigSpeak" aria-label="もういちど きく">🔊</button>
+    </div>
+    <div class="panel" id="stars"></div>
+  </div>
+  <div id="stage">
+    <canvas id="board"></canvas>
+    <div id="nav">
+      <button id="prev" aria-label="まえ">◀</button>
+      <button id="again" aria-label="もういちど">↺</button>
+      <button id="next" aria-label="つぎ">▶</button>
+    </div>
+    <div id="quiz">
+      <div id="qChoices"></div>
+    </div>
+    <div id="shop">
+      <div id="shelf"></div>
+      <div id="basketWrap">
+        <div id="basket"></div>
+        <button id="done">できた</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="reward"><div id="rewardText"></div></div>
+<canvas id="confetti"></canvas>
+<script src="strokes.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
