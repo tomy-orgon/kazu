@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>かずを かこう</title>
+<title>かずあそび</title>
 <meta name="robots" content="noindex,nofollow">
 <meta name="theme-color" content="#fff8ee">
 <meta name="mobile-web-app-capable" content="yes">
@@ -14,19 +14,26 @@
 <link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="app.css">
 </head>
-<body>
-<div id="start">
-  <div id="startInner">
-    <div id="startTitle">かずを かこう</div>
-    <button id="startBtn">▶ はじめる</button>
+<body class="home">
+<div id="home">
+  <h1 id="homeTitle">かずあそび</h1>
+  <div id="homeCards">
+    <button class="hcard" data-mode="write">
+      <span class="hicon">✏️</span><span class="hlabel">かく</span>
+    </button>
+    <button class="hcard" data-mode="quiz">
+      <span class="hicon">🔢</span><span class="hlabel">えらぶ</span>
+    </button>
+    <button class="hcard" data-mode="shop">
+      <span class="hicon">🍎</span><span class="hlabel">おみせ</span>
+    </button>
   </div>
+  <button id="homeSpeak" aria-label="もういちど きく">🔊</button>
 </div>
 <div id="app">
   <div id="side">
     <div id="modes">
-      <button id="mWrite" class="on">かく</button>
-      <button id="mQuiz">えらぶ</button>
-      <button id="mShop">おみせ</button>
+      <button id="homeBtn" aria-label="おうちに もどる">🏠</button>
     </div>
     <div class="panel" id="target">
       <div id="targetNum">1</div>
