@@ -1,0 +1,215 @@
+:root{
+  --bg:#fff8ee; --ink:#3b3028; --card:#ffffff;
+  --accent:#ff8a3d; --accent2:#4aa3ff; --ok:#3fc06d;
+  --guide:#e2d9cd; --guide2:#c9bdae;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none;touch-action:none}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:"Hiragino Maru Gothic ProN","Rounded Mplus 1c",-apple-system,"Noto Sans JP",sans-serif;
+  user-select:none; -webkit-user-select:none;
+}
+#app{display:flex;height:100%;width:100%;gap:1.2vmin;padding:1.4vmin}
+
+/* ---- 左（横向き）／上（縦向き）: お題パネル ---- */
+#side{
+  flex:0 0 26%; display:flex; flex-direction:column; gap:1.2vmin;
+  min-width:0;
+}
+.panel{
+  background:var(--card); border-radius:3vmin; box-shadow:0 .6vmin 0 #e8dfd2;
+  display:flex; align-items:center; justify-content:center; flex-direction:column;
+}
+#target{flex:1; position:relative; cursor:pointer; min-height:0}
+#targetNum{
+  font-size:min(26vmin,34vh); line-height:1; font-weight:800; color:var(--accent);
+  letter-spacing:-.02em; text-align:center; width:100%;
+}
+#targetDots{display:grid;grid-template-columns:repeat(5,auto);gap:1.1vmin;justify-content:center;margin-top:2vmin}
+.dot{width:2.6vmin;height:2.6vmin;border-radius:50%;background:var(--accent2);opacity:.85}
+#speak{
+  position:absolute; right:2vmin; top:2vmin; width:9vmin; height:9vmin; border-radius:50%;
+  border:none; background:#fff0e0; font-size:4.6vmin; display:grid; place-items:center;
+}
+#speak:active{transform:scale(.92)}
+
+#stars{
+  flex:0 0 auto; padding:1.4vmin; font-size:4.2vmin; letter-spacing:.3vmin;
+  min-height:9vmin; flex-direction:row; flex-wrap:wrap; gap:.4vmin; overflow:hidden;
+  line-height:1.25; word-break:break-all;
+}
+#stars{gap:1.2vmin}
+#stars .starIcon{font-size:5.4vmin;line-height:1}
+#stars .starNum{font-size:5.4vmin;font-weight:800;color:#e0a92b;font-variant-numeric:tabular-nums}
+#stars.zero{opacity:.3}
+
+/* ---- 右（横向き）／下（縦向き）: キャンバス ---- */
+#stage{flex:1; position:relative; min-width:0}
+#board{width:100%;height:100%;display:block;border-radius:3vmin;background:var(--card);box-shadow:0 .6vmin 0 #e8dfd2}
+
+#nav{
+  position:absolute; left:0; right:0; bottom:1.6vmin;
+  display:flex; justify-content:center; align-items:center; gap:2.2vmin; pointer-events:none;
+}
+#nav button{
+  pointer-events:auto; border:none; border-radius:50%; width:11vmin; height:11vmin;
+  font-size:5vmin; background:#fff; box-shadow:0 .6vmin 0 #e0d5c6; display:grid; place-items:center;
+}
+#nav button:active{transform:translateY(.5vmin);box-shadow:0 .1vmin 0 #e0d5c6}
+#again{font-size:4.4vmin}
+
+/* ---- ごほうび ---- */
+#reward{
+  position:fixed; inset:0; display:none; place-items:center; pointer-events:none; z-index:10;
+}
+#reward.on{display:grid}
+#rewardText{
+  font-size:6vmin; font-weight:800; color:#fff;
+  background:var(--ok); padding:1.6vmin 4vmin; border-radius:4vmin;
+  box-shadow:0 .8vmin 0 rgba(0,0,0,.12);
+  animation:pop .5s cubic-bezier(.2,1.6,.4,1);
+}
+@keyframes pop{0%{transform:scale(.2) rotate(-12deg);opacity:0}60%{transform:scale(1.15) rotate(4deg);opacity:1}100%{transform:scale(1) rotate(0)}}
+#confetti{position:fixed;inset:0;pointer-events:none;z-index:9;display:block}
+
+/* ---- 縦向き ---- */
+@media (orientation:portrait){
+  #app{flex-direction:column}
+  #side{flex:0 0 26%; flex-direction:row}
+  #target{flex:1}
+  #targetNum{font-size:min(18vh,30vmin)}
+  #stars{flex:0 0 22%; flex-direction:column; align-content:flex-start; writing-mode:horizontal-tb}
+}
+
+#nav button.hint{
+  background:var(--ok); color:#fff;
+  animation:nudge 1s ease-in-out infinite;
+}
+@keyframes nudge{0%,100%{transform:translateY(0)}50%{transform:translateY(-1.2vmin)}}
+@media (prefers-reduced-motion:reduce){#nav button.hint{animation:none}}
+
+/* ===== モード切り替え ===== */
+#modes{display:flex;gap:1.2vmin;flex:0 0 auto}
+#modes button{
+  flex:1; border:none; border-radius:2.4vmin; padding:1.6vmin 0;
+  font-size:3.4vmin; font-weight:800; color:#a2917c; background:#f6efe4;
+  box-shadow:0 .5vmin 0 #e8dfd2; font-family:inherit;
+}
+#modes button.on{background:var(--accent);color:#fff;box-shadow:0 .5vmin 0 #e07a33}
+
+/* ===== えらぶモード ===== */
+#bigSpeak{display:none;border:none;background:var(--accent2);color:#fff;
+  width:26vmin;height:26vmin;border-radius:50%;font-size:12vmin;
+  box-shadow:0 1vmin 0 #3a86d6;place-items:center}
+#bigSpeak:active{transform:translateY(.6vmin);box-shadow:0 .4vmin 0 #3a86d6}
+
+#quiz{display:none;position:absolute;inset:0;padding:3vmin;
+  align-items:center;justify-content:center}
+#qChoices{display:flex;flex-wrap:wrap;gap:3vmin;align-items:center;justify-content:center;width:100%;max-width:78vmin;margin:0 auto}
+.choice{
+  border:none;border-radius:4vmin;background:#fff;color:var(--accent);
+  box-shadow:0 1vmin 0 #e8dfd2; font-family:inherit; font-weight:800;
+  min-width:22vmin;min-height:26vmin;padding:1vmin 3vmin;
+  font-size:16vmin;line-height:1; display:grid;place-items:center;
+}
+.choice:active{transform:translateY(.6vmin);box-shadow:0 .4vmin 0 #e8dfd2}
+.choice.wrong{animation:shake .4s;background:#f3ece2;color:#b6a892}
+.choice.right{background:var(--ok);color:#fff;box-shadow:0 1vmin 0 #34a35c}
+@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-1.6vmin)}
+  50%{transform:translateX(1.4vmin)}80%{transform:translateX(-.8vmin)}}
+@media (prefers-reduced-motion:reduce){.choice.wrong{animation:none}}
+
+/* 「えらぶ」のときは答えになる数字を隠す */
+body.quiz #targetNum{display:none}
+body.quiz #speak{display:none}
+body.quiz #board,body.quiz #nav{display:none}
+body.quiz #quiz{display:flex}
+body.quiz.qsound #targetDots{display:none}
+body.quiz.qsound #bigSpeak{display:grid}
+body.quiz.qdots #targetDots{gap:2vmin;margin-top:0}
+body.quiz.qdots .dot{width:5vmin;height:5vmin}
+
+/* 縦持ちのときは、モード切り替えを1行目に独立させる */
+@media (orientation:portrait){
+  #side{flex:0 0 32%; flex-wrap:wrap; align-content:flex-start}
+  #modes{flex:0 0 100%; order:-1}
+  #modes button{font-size:4.2vmin;padding:2vmin 0}
+  #target{flex:1 1 62%}
+  #stars{flex:1 1 30%; min-width:0}
+}
+@media (orientation:portrait){
+  #bigSpeak{width:17vmin;height:17vmin;font-size:8vmin}
+}
+
+/* えらぶモードの「数える」問題は、枠で囲って対象をはっきりさせる */
+body.quiz.qdots #targetDots{
+  background:#eaf4ff; border-radius:4vmin; padding:3vmin 3.4vmin;
+  box-shadow:inset 0 0 0 .5vmin #d3e7fb;
+}
+
+/* ===== おみせやさん ===== */
+#modes button{font-size:3vmin}
+#orderItem{display:none;font-size:11vmin;line-height:1;margin-top:1vmin}
+body.shop #orderItem{display:block}
+body.shop #targetNum{display:block;font-size:min(20vmin,26vh)}
+body.shop #targetDots{display:none}
+body.shop #speak{display:none}
+body.shop #bigSpeak{display:none}
+body.shop #board,body.shop #nav{display:none}
+body.shop #shop{display:flex}
+
+#shop{display:none;position:absolute;inset:0;flex-direction:column;gap:1.6vmin;padding:2vmin}
+#shelf{
+  flex:1 1 54%; min-height:0; display:flex;flex-wrap:wrap;align-content:flex-start;
+  gap:1.4vmin; padding:2vmin;
+  background:#fffaf2; border-radius:3vmin;
+  box-shadow:inset 0 0 0 .5vmin #efe3d2;
+}
+#basketWrap{flex:0 0 40%;display:flex;gap:2vmin;align-items:stretch;min-height:0}
+#basket{
+  flex:1; display:flex;flex-wrap:wrap;align-content:flex-start;gap:1.4vmin;
+  padding:2vmin 2vmin 2.6vmin; border-radius:2vmin 2vmin 5vmin 5vmin; min-height:0;
+  background:repeating-linear-gradient(45deg,#e4b887 0 1.4vmin,#d8a874 1.4vmin 2.8vmin);
+  box-shadow:inset 0 0 0 .7vmin #b98a56, 0 .8vmin 0 #b98a56;
+  overflow:auto;
+}
+#basket.over{box-shadow:inset 0 0 0 1.2vmin var(--ok), 0 .8vmin 0 #b98a56}
+#done{
+  flex:0 0 24%; border:none;border-radius:3vmin;font-family:inherit;font-weight:800;
+  font-size:5vmin;color:#fff;background:var(--ok);box-shadow:0 1vmin 0 #34a35c;
+}
+#done:active{transform:translateY(.6vmin);box-shadow:0 .4vmin 0 #34a35c}
+#done:disabled{opacity:.45}
+
+.goods{
+  font-size:8.5vmin;line-height:1;width:12vmin;height:12vmin;
+  display:grid;place-items:center;border-radius:2.4vmin;background:#fff;
+  box-shadow:0 .5vmin 0 #e8dfd2; touch-action:none; user-select:none;
+}
+#basket .goods{background:rgba(255,255,255,.92)}
+.goods.dragging{position:fixed;z-index:50;box-shadow:0 1.6vmin 2vmin rgba(0,0,0,.25);transform:scale(1.15)}
+.goods.counting{background:var(--ok);transform:scale(1.2)}
+@media (prefers-reduced-motion:reduce){.goods.counting{transform:none}}
+
+@media (orientation:portrait){
+  body.shop #targetNum{font-size:14vh}
+  #orderItem{font-size:9vh}
+  #shelf{flex:1 1 46%}
+  #basketWrap{flex:0 0 44%}
+  .goods{width:15vmin;height:15vmin;font-size:10vmin}
+}
+
+/* ===== さいしょの「はじめる」画面（ブラウザは最初にタップしないと音が出ないため） ===== */
+#start{
+  position:fixed; inset:0; z-index:100; display:grid; place-items:center;
+  background:var(--bg);
+}
+#startInner{text-align:center}
+#startTitle{font-size:7vmin;font-weight:800;color:var(--accent);margin-bottom:5vmin;line-height:1.3}
+#startBtn{
+  border:none;border-radius:6vmin;background:var(--accent);color:#fff;
+  font-family:inherit;font-weight:800;font-size:7vmin;padding:3.4vmin 9vmin;
+  box-shadow:0 1.2vmin 0 #e07a33;
+}
+#startBtn:active{transform:translateY(.8vmin);box-shadow:0 .4vmin 0 #e07a33}
