@@ -33,6 +33,10 @@
     <button class="hcard" data-mode="order">
       <span class="hicon">📶</span><span class="hlabel">じゅんばん</span>
     </button>
+    <button class="hcard" data-mode="nanko">
+      <span class="hicon">🧮</span><span class="hlabel">なんこかな</span>
+      <span class="hnote">※むずかしい</span>
+    </button>
   </div>
   <button id="homeSpeak" aria-label="もういちど きく">🔊</button>
 </div>
@@ -46,6 +50,7 @@
       <div id="targetDots"></div>
       <div id="orderItem"></div>
       <div id="ordAsk" aria-hidden="true"></div>
+      <div id="nkSide"></div>
       <div id="cmpAsk" aria-hidden="true">
         <span class="cmpAskSide many"><i></i><i></i><i></i><i></i><i></i><i></i></span>
         <span class="cmpAskSide few"><i></i><i></i></span>
@@ -72,6 +77,10 @@
         <button id="done">できた</button>
       </div>
     </div>
+    <div id="nanko">
+      <div id="nkItems"></div>
+      <div id="nkChoices"></div>
+    </div>
     <div id="order">
       <div id="ordRow"></div>
     </div>
@@ -85,6 +94,7 @@
 </div>
 <div id="reward"><div id="rewardText"></div></div>
 <canvas id="confetti"></canvas>
+<script src="voices.js"></script>
 <script src="strokes.js"></script>
 <script src="app.js"></script>
 </body>

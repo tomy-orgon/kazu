@@ -88,6 +88,7 @@ function fit() {
   draw();
 }
 const toScreen = p => ({ x: p.x*TR.s + TR.ox, y: p.y*TR.s + TR.oy });
+window.__strokePts = () => shape().map(st => st.cps.map(toScreen));   // 動作確認用（なぞる線の座標）
 function toVB(clientX, clientY) {
   const r = cv.getBoundingClientRect();
   return { x: (clientX - r.left - TR.ox)/TR.s, y: (clientY - r.top - TR.oy)/TR.s };
@@ -178,7 +179,11 @@ function loop(){
 
 // ===== 音 =====
 let AC = null;
-const ac = () => (AC ||= new (window.AudioContext || window.webkitAudioContext)());
+const ac = () => {
+  AC ||= new (window.AudioContext || window.webkitAudioContext)();
+  if (AC.state === 'suspended') { try { AC.resume(); } catch(e){} }
+  return AC;
+};
 function beep(freq, dur = .12, type = 'sine', vol = .18) {
   try {
     const a = ac(), o = a.createOscillator(), g = a.createGain();
@@ -208,10 +213,49 @@ const FALLBACK = { yatta1:'yatta', yatta2:'yatta', yatta3:'yatta',
                    // 念のための保険。q_ookii/q_chiisai は録音済みだが、
                    // 万一ファイルが欠けても「おおい」「すくない」だけは鳴るようにしておく。
                    q_ookii:'g_ooi', q_chiisai:'g_sukunai',
-                   q_chiisaijun:'q_chiisai', q_ookiijun:'q_ookii' };
+                   q_chiisaijun:'q_chiisai', q_ookiijun:'q_ookii',
+                   // 万一ファイルが欠けたときの保険
+                   m_nanko:'p_ikutsu', q_nanko:'p_ikutsu' };
 let lastPraise = -1;
 const voices = {};
 let curAudio = null, speakToken = 0;
+
+// voices.js に埋め込んだ声を、起動時にまとめて展開しておく。
+// こうしておくと押した瞬間に鳴る（<audio> は鳴り出すまでに間がある）。
+const BUFS = {};
+let curSrc = null;
+function initVoices() {
+  const V = window.VOICEDATA;
+  if (!V || !(window.AudioContext || window.webkitAudioContext)) return;
+  let a; try { a = AC ||= new (window.AudioContext || window.webkitAudioContext)(); } catch(e) { return; }
+  Object.keys(V).forEach(name => {
+    let bytes;
+    try {
+      const bin = atob(V[name]);
+      bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    } catch(e) { return; }
+    const ok = b => { BUFS[name] = b; };
+    try {
+      const p = a.decodeAudioData(bytes.buffer, ok, () => {});
+      if (p && p.then) p.then(ok).catch(() => {});
+    } catch(e) {}
+  });
+}
+
+// 展開済みの声を鳴らす。まだ用意できていなければ false（<audio> 側にまかせる）
+function playBuf(name, onEnd) {
+  const buf = BUFS[name];
+  if (!buf) return false;
+  let a; try { a = ac(); } catch(e) { return false; }
+  const src = a.createBufferSource();
+  src.buffer = buf; src.connect(a.destination);
+  src.onended = () => { if (curSrc === src) curSrc = null; if (onEnd) onEnd(); };
+  try { src.start(); } catch(e) { return false; }
+  curSrc = src;
+  return true;
+}
+window.__voiceReady = () => Object.keys(BUFS).length;   // 動作確認用
 
 function audioOf(name) {
   let a = voices[name];
@@ -225,6 +269,7 @@ function audioOf(name) {
 
 function stopSpeak() {
   speakToken++;
+  if (curSrc) { try { curSrc.onended = null; curSrc.stop(0); } catch(e){} curSrc = null; }
   if (curAudio) { try { curAudio.pause(); curAudio.currentTime = 0; } catch(e){} }
   curAudio = null;
 }
@@ -244,6 +289,11 @@ function speak(names, opts = {}) {
     if (!list.length) { curAudio = null; if (onDone) onDone(); return; }
     const n = list.shift(); i++;
     if (onStep) { try { onStep(n, i); } catch(e){} }
+    if (playBuf(n, step)) return;            // 展開済みならここで即再生
+    // voices.js に無い＝未収録。ファイルを取りに行かず、すぐ代役の声にする
+    if (window.VOICEDATA && !window.VOICEDATA[n] && FALLBACK[n] && !tried[n]) {
+      tried[n] = 1; list.unshift(FALLBACK[n]); return step();
+    }
     let a;
     try { a = audioOf(n); } catch(e) { return step(); }
     const skip = () => {
@@ -324,7 +374,13 @@ function finishStroke() {
   drawing = false;
   doneStrokes.push(strokeI);
   strokeI++; cpI = 0; trail = [];
-  if (strokeI >= shape().length) { draw(); setTimeout(celebrate, 160); }
+  if (strokeI >= shape().length) {
+    draw();
+    setTimeout(() => {
+      if (nankoOn) celebrate(() => { if (nankoOn) newNanko(); });
+      else celebrate();
+    }, 160);
+  }
   else { sfxStroke(); draw(); }
 }
 function onUp() {
@@ -412,10 +468,10 @@ function newQuestion(intro) {
   window.__answer = qAnswer;   // 動作確認用
   if (qKind === 'dots') {
     setDots(Number(qAnswer));
-    speak([...(intro||[]), 'p_ikutsu'], 250);
+    speak([...(intro||[]), 'p_ikutsu']);
   } else {
     setDots(0);
-    speak([...(intro||[]), qAnswer, 'p_dore'], 250);
+    speak([...(intro||[]), qAnswer, 'p_dore']);
   }
 
   const box = $('#qChoices'); box.innerHTML = '';
@@ -451,17 +507,21 @@ function setMode(mode, intro) {
   shopOn = (mode === 'shop');
   compareOn = (mode === 'compare');
   orderOn = (mode === 'order');
+  nankoOn = (mode === 'nanko');
   document.body.classList.toggle('quiz', quizOn);
   document.body.classList.toggle('shop', shopOn);
   document.body.classList.toggle('compare', compareOn);
   document.body.classList.toggle('order', orderOn);
+  document.body.classList.toggle('nanko', nankoOn);
   if (!quizOn) document.body.classList.remove('qsound','qdots');
   if (!compareOn) document.body.classList.remove('cbig','csmall');
   if (!orderOn) document.body.classList.remove('odesc');
+  if (!nankoOn) document.body.classList.remove('nkwrite');
   if (quizOn)         { qN = QUIZ.min; qStreak = 0; newQuestion(intro); }
   else if (shopOn)    { newOrder(intro); }
   else if (compareOn) { cStreak = 0; cLevel = 0; newCompare(intro); }
   else if (orderOn)   { oStreak = 0; oLevel = 0; newOrderQ(intro); }
+  else if (nankoOn)   { newNanko(intro); }
   else                { setTarget(intro); }
 }
 
@@ -536,7 +596,7 @@ function newCompare(intro) {
   fillCmpSide($('#cmpA'), numSide === 0, na, icon);
   fillCmpSide($('#cmpB'), numSide === 1, nb, icon);
 
-  speak([...(intro||[]), cKind === 'big' ? 'q_ookii' : 'q_chiisai'], 250);
+  speak([...(intro||[]), cKind === 'big' ? 'q_ookii' : 'q_chiisai']);
 }
 
 function sayCompare() { speak([cKind === 'big' ? 'q_ookii' : 'q_chiisai']); }
@@ -562,6 +622,92 @@ function cmpAnswer(btn, i) {
     btn.classList.add('wrong');
     setTimeout(() => btn.classList.remove('wrong'), 420);
   }
+}
+
+
+// ===== なんこかな（数えて → 数字を選んで → その数字をなぞる）=====
+// ※むずかしい版。「えらぶ」と「かく」を続けてやる形にして、数えた答えを自分で書かせる。
+const NANKO = { max:10, choices:3 };
+let nankoOn = false, nkN = 0, nkGood = null, nkLock = false, nkMiss = 0;
+const NK_COLS = {1:1,2:2,3:3,4:2,5:5,6:3,7:4,8:4,9:3,10:5};
+
+function renderNkItems(box, n, emoji) {
+  box.innerHTML = '';
+  box.style.gridTemplateColumns = 'repeat(' + (NK_COLS[n] || 5) + ',auto)';
+  for (let i = 0; i < n; i++) {
+    const e = document.createElement('div');
+    e.className = 'goods'; e.textContent = emoji;
+    box.appendChild(e);
+  }
+}
+
+function newNanko(intro) {
+  nkLock = false; nkMiss = 0;
+  document.body.classList.remove('nkwrite');
+  nkGood = SHOP.goods[Math.floor(Math.random()*SHOP.goods.length)];
+  nkN = 1 + Math.floor(Math.random()*NANKO.max);
+  window.__nkN = nkN;                       // 動作確認用
+  $('#targetNum').textContent = '？';
+  renderNkItems($('#nkItems'), nkN, nkGood.emoji);
+  renderNkItems($('#nkSide'),  nkN, nkGood.emoji);
+
+  // 選択肢は答えに近い数字を混ぜる（ちゃんと数えないと当たらないように）
+  const near = [];
+  for (let d = 1; d <= 3 && near.length < 4; d++) {
+    if (nkN - d >= 1) near.push(nkN - d);
+    if (nkN + d <= 10) near.push(nkN + d);
+  }
+  const others = shuffle(near).slice(0, NANKO.choices - 1);
+  const box = $('#nkChoices'); box.innerHTML = '';
+  shuffle([nkN, ...others]).forEach(v => {
+    const b = document.createElement('button');
+    b.className = 'nkChoice'; b.textContent = String(v); b.dataset.v = String(v);
+    b.addEventListener('click', () => nkAnswer(b, v));
+    box.appendChild(b);
+  });
+  speak([...(intro||[]), 'q_nanko']);
+}
+
+function sayNanko() {
+  if (document.body.classList.contains('nkwrite')) speak([String(nkN), 'p_kaku']);
+  else speak(['q_nanko']);
+}
+
+// 一緒に数えてあげる（2回まちがえたとき）
+function countNkItems() {
+  const items = [...$('#nkItems').children];
+  const clear = () => items.forEach(e => { e.classList.remove('counting'); delete e.dataset.count; });
+  speak(['g_kazoete', ...items.map((_, i) => String(i+1))], {
+    onStep: (n, i) => {
+      clear();
+      const k = i - 1;                       // 先頭は「かぞえて みよう」
+      if (k >= 0 && items[k]) { items[k].classList.add('counting'); items[k].dataset.count = String(k+1); }
+    },
+    onDone: clear
+  });
+}
+
+function nkAnswer(btn, v) {
+  if (nkLock) return;
+  if (v === nkN) {
+    nkLock = true;
+    btn.classList.add('right');
+    sfxStroke();
+    setTimeout(startNkWrite, 320);
+  } else {
+    sfxOops(); speak(['p_oshii'], 180);
+    btn.classList.add('wrong'); btn.disabled = true;
+    nkMiss++;
+    setTimeout(() => btn.classList.remove('wrong'), 420);
+    if (nkMiss >= 2) setTimeout(countNkItems, 700);
+  }
+}
+
+// 答えが合っていたら、その数字をなぞり書きする画面へ
+function startNkWrite() {
+  document.body.classList.add('nkwrite');
+  idx = CFG.order.indexOf(String(nkN));
+  setTarget();                                // 数字を読み上げて「を かいてみよう」
 }
 
 
@@ -640,7 +786,7 @@ function newOrderQ(intro) {
   const row = $('#ordRow'); row.innerHTML = '';
   shuffle(nums.slice()).forEach(v => row.appendChild(makeOrdCard(v, L.dots)));
 
-  speak([...(intro||[]), oDir === 'asc' ? 'q_chiisaijun' : 'q_ookiijun'], 250);
+  speak([...(intro||[]), oDir === 'asc' ? 'q_chiisaijun' : 'q_ookiijun']);
 }
 
 function sayOrderQ() { speak([oDir === 'asc' ? 'q_chiisaijun' : 'q_ookiijun']); }
@@ -750,7 +896,7 @@ function newOrder(intro) {
   $('#orderItem').textContent = shopGood.emoji;
   shelfEl().innerHTML = ''; basketEl().innerHTML = '';
   for (let i = 0; i < SHOP.shelf; i++) shelfEl().appendChild(makeGood(shopGood));
-  speak([...(intro||[]), shopGood.key, KO(shopTarget), 'g_kago'], 250);
+  speak([...(intro||[]), shopGood.key, KO(shopTarget), 'g_kago']);
 }
 
 function sayOrder() { speak([shopGood.key, KO(shopTarget), 'g_kago']); }
@@ -830,16 +976,16 @@ function checkOrder() {
 //   g_nanishite … 「なにを して あそぶ？」
 //   b_ouchi     … 「おうちに もどる」
 const V_HOME = 'g_nanishite', V_BACK = 'b_ouchi';
-const MODE_VOICE = { write:'m_kaku', quiz:'m_erabu', shop:'m_omise', compare:'m_kurabu', order:'m_junban' };
+const MODE_VOICE = { write:'m_kaku', quiz:'m_erabu', shop:'m_omise', compare:'m_kurabu', order:'m_junban', nanko:'m_nanko' };
 
 const atHome = () => document.body.classList.contains('home');
 
 function showHome(intro) {
   stopSpeak();
-  quizOn = false; shopOn = false; compareOn = false; orderOn = false; dragEl = null;
-  document.body.classList.remove('quiz','shop','qsound','qdots','compare','cbig','csmall','order','odesc');
+  quizOn = false; shopOn = false; compareOn = false; orderOn = false; nankoOn = false; dragEl = null;
+  document.body.classList.remove('quiz','shop','qsound','qdots','compare','cbig','csmall','order','odesc','nanko','nkwrite');
   document.body.classList.add('home');
-  speak([...(intro||[]), V_HOME], 120);
+  speak([...(intro||[]), V_HOME]);
 }
 
 function enterMode(mode) {
@@ -867,6 +1013,7 @@ $('#target').addEventListener('click', () => {
   if (shopOn) sayOrder();
   else if (compareOn) sayCompare();
   else if (orderOn) sayOrderQ();
+  else if (nankoOn) sayNanko();
   else if (!quizOn) speak([cur(), 'p_kaku']);
 });
 $('#cmpA').addEventListener('click', () => cmpAnswer($('#cmpA'), 0));
@@ -883,6 +1030,7 @@ window.addEventListener('pointercancel', onGoodUp);
 window.addEventListener('resize', fit);
 window.addEventListener('orientationchange', () => setTimeout(fit, 250));
 
+initVoices();
 renderStars(); loop();
 showHome();
 // 起動直後は音が鳴らせないことがあるので、最初のタップでもう一度だけ声をかける
