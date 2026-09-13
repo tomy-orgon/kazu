@@ -75,7 +75,7 @@ function fit() {
   cfx.width = Math.round(window.innerWidth*dpr); cfx.height = Math.round(window.innerHeight*dpr);
   cfxc.setTransform(dpr,0,0,dpr,0,0);
   ctx.setTransform(dpr,0,0,dpr,0,0);
-  const bb = bbox(shape());
+  const bb = nkFree ? {cx:VB[0]/2, cy:201, w:174, h:282} : bbox(shape());
   // 大きさは全数字で共通（数字ごとに大小すると違和感が出るため）、横位置だけ字形に合わせて中央へ
   const m = 34, GW = 174, GH = 282, GCY = 201;   // 1桁の数字を含む共通の枠
   // 「10」のように横に広い字は、その字の幅に合わせて縮める
@@ -115,6 +115,7 @@ function pathOf(pts, from = 0, to = pts.length) {
   }
 }
 function draw() {
+  if (nkFree) return drawFree();
   const W = TR.w, H = TR.h;
   ctx.clearRect(0,0,W,H);
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
@@ -173,7 +174,7 @@ function draw() {
   }
 }
 function loop(){
-  if (!atHome() && !drawing && strokeI < shape().length && cpI === 0) draw();
+  if (!atHome() && !nkFree && !drawing && strokeI < shape().length && cpI === 0) draw();
   requestAnimationFrame(loop);
 }
 
@@ -332,6 +333,13 @@ function resetStroke(soft) {
 // ===== 入力 =====
 function onDown(e) {
   ac(); // 最初のタッチで音を有効化
+  if (nkFree) {                       // フリー書き：線の上をたどらせず、自由に書かせる
+    if (nkLock) return;
+    freeCur = [toVB(e.clientX, e.clientY)];
+    freeDrawing = true;
+    cv.setPointerCapture(e.pointerId);
+    drawFree(); return;
+  }
   if (strokeI >= shape().length) return;
   const p = toVB(e.clientX, e.clientY);
   const st = shape()[strokeI];
@@ -343,6 +351,13 @@ function onDown(e) {
   advance(p);
 }
 function onMove(e) {
+  if (nkFree) {
+    if (!freeDrawing) return;
+    const q = toVB(e.clientX, e.clientY);
+    const l = freeCur[freeCur.length-1];
+    if (!l || Math.hypot(q.x-l.x, q.y-l.y) > 1.5) { freeCur.push(q); drawFree(); }
+    return;
+  }
   if (!drawing) return;
   const p = toVB(e.clientX, e.clientY);
   const last = trail[trail.length-1];
@@ -377,13 +392,19 @@ function finishStroke() {
   if (strokeI >= shape().length) {
     draw();
     setTimeout(() => {
-      if (nankoOn) celebrate(() => { if (nankoOn) newNanko(); });
+      if (nankoOn) { nkWin(); celebrate(() => { if (nankoOn) newNanko(); }); }
       else celebrate();
     }, 160);
   }
   else { sfxStroke(); draw(); }
 }
 function onUp() {
+  if (nkFree) {
+    if (!freeDrawing) return;
+    freeDrawing = false;
+    if (freeCur && freeCur.length > 1) { freeStrokes.push(freeCur); sfxTick(); }
+    freeCur = null; drawFree(); return;
+  }
   if (!drawing) return;
   drawing = false;
   if (strokeI < shape().length && cpI > 0 && cpI < shape()[strokeI].cps.length * CFG.finishRatio) resetStroke(false);
@@ -516,12 +537,12 @@ function setMode(mode, intro) {
   if (!quizOn) document.body.classList.remove('qsound','qdots');
   if (!compareOn) document.body.classList.remove('cbig','csmall');
   if (!orderOn) document.body.classList.remove('odesc');
-  if (!nankoOn) document.body.classList.remove('nkwrite');
+  if (!nankoOn) { document.body.classList.remove('nkwrite','nkfree'); nkFree = false; }
   if (quizOn)         { qN = QUIZ.min; qStreak = 0; newQuestion(intro); }
   else if (shopOn)    { newOrder(intro); }
   else if (compareOn) { cStreak = 0; cLevel = 0; newCompare(intro); }
   else if (orderOn)   { oStreak = 0; oLevel = 0; newOrderQ(intro); }
-  else if (nankoOn)   { newNanko(intro); }
+  else if (nankoOn)   { nkLevel = 0; nkStreak = 0; newNanko(intro); }
   else                { setTarget(intro); }
 }
 
@@ -551,10 +572,11 @@ function fillCmpSide(el, isNum, value, icon) {
     el.appendChild(t);
   } else {
     const wrap = document.createElement('div');
-    wrap.className = 'cmpIll';
     // 数えやすい形に並べる（6は3×2、9は3×3、10は5×2 など）
     const COLS = {1:1,2:2,3:3,4:2,5:5,6:3,7:4,8:4,9:3,10:5};
-    wrap.style.gridTemplateColumns = 'repeat(' + (COLS[value] || 5) + ',1fr)';
+    const cols = COLS[value] || 5;
+    wrap.className = 'cmpIll' + (cols >= 3 ? ' c' + Math.min(cols, 5) : '');
+    wrap.style.gridTemplateColumns = 'repeat(' + cols + ',1fr)';
     for (let i = 0; i < value; i++) {
       const s = document.createElement('span');
       s.textContent = icon;
@@ -625,10 +647,19 @@ function cmpAnswer(btn, i) {
 }
 
 
-// ===== なんこかな（数えて → 数字を選んで → その数字をなぞる）=====
-// ※むずかしい版。「えらぶ」と「かく」を続けてやる形にして、数えた答えを自分で書かせる。
-const NANKO = { max:10, choices:3 };
+// ===== なんこかな（数えて → 数字を書く）=====
+// ※むずかしい版。3段階あり、上手になるほどヒントが減っていく。
+//   0: 3択で数字を選ぶ → お手本をなぞって書く
+//   1: 3択で数字を選ぶ → お手本なしで自分で書く
+//   2: 3択なし         → 数えて、お手本なしで自分で書く
+// ノーミスで3問続けて正解すると1つ上がり、2回まちがえると1つ下がる。
+const NANKO = {
+  max:10, choices:3, up:3,
+  levels: [ {choice:true, free:false}, {choice:true, free:true}, {choice:false, free:true} ],
+};
 let nankoOn = false, nkN = 0, nkGood = null, nkLock = false, nkMiss = 0;
+let nkLevel = 0, nkStreak = 0;
+let nkFree = false, freeStrokes = [], freeCur = null, freeDrawing = false;
 const NK_COLS = {1:1,2:2,3:3,4:2,5:5,6:3,7:4,8:4,9:3,10:5};
 
 function renderNkItems(box, n, emoji) {
@@ -643,38 +674,48 @@ function renderNkItems(box, n, emoji) {
 
 function newNanko(intro) {
   nkLock = false; nkMiss = 0;
-  document.body.classList.remove('nkwrite');
+  nkFree = false; freeStrokes = []; freeCur = null; freeDrawing = false;
+  document.body.classList.remove('nkwrite','nkfree');
   nkGood = SHOP.goods[Math.floor(Math.random()*SHOP.goods.length)];
   nkN = 1 + Math.floor(Math.random()*NANKO.max);
   window.__nkN = nkN;                       // 動作確認用
+  window.__nkLevel = nkLevel;               // 動作確認用
   $('#targetNum').textContent = '？';
   renderNkItems($('#nkItems'), nkN, nkGood.emoji);
   renderNkItems($('#nkSide'),  nkN, nkGood.emoji);
 
-  // 選択肢は答えに近い数字を混ぜる（ちゃんと数えないと当たらないように）
-  const near = [];
-  for (let d = 1; d <= 3 && near.length < 4; d++) {
-    if (nkN - d >= 1) near.push(nkN - d);
-    if (nkN + d <= 10) near.push(nkN + d);
-  }
-  const others = shuffle(near).slice(0, NANKO.choices - 1);
+  const lv = NANKO.levels[nkLevel];
   const box = $('#nkChoices'); box.innerHTML = '';
-  shuffle([nkN, ...others]).forEach(v => {
-    const b = document.createElement('button');
-    b.className = 'nkChoice'; b.textContent = String(v); b.dataset.v = String(v);
-    b.addEventListener('click', () => nkAnswer(b, v));
-    box.appendChild(b);
-  });
-  speak([...(intro||[]), 'q_nanko']);
+  if (lv.choice) {
+    // 選択肢は答えに近い数字を混ぜる（ちゃんと数えないと当たらないように）
+    const near = [];
+    for (let d = 1; d <= 3 && near.length < 4; d++) {
+      if (nkN - d >= 1) near.push(nkN - d);
+      if (nkN + d <= 10) near.push(nkN + d);
+    }
+    const others = shuffle(near).slice(0, NANKO.choices - 1);
+    shuffle([nkN, ...others]).forEach(v => {
+      const b = document.createElement('button');
+      b.className = 'nkChoice'; b.textContent = String(v); b.dataset.v = String(v);
+      b.addEventListener('click', () => nkAnswer(b, v));
+      box.appendChild(b);
+    });
+    speak([...(intro||[]), 'q_nanko']);
+  } else {
+    // 3択なし。数えたらそのまま書いてもらう
+    startNkWrite(intro);
+  }
 }
 
 function sayNanko() {
-  if (document.body.classList.contains('nkwrite')) speak([String(nkN), 'p_kaku']);
-  else speak(['q_nanko']);
+  if (document.body.classList.contains('nkwrite')) {
+    if (nkFree) speak(['q_nanko']);          // 答えは言わない
+    else speak([String(nkN), 'p_kaku']);
+  } else speak(['q_nanko']);
 }
 
-// 一緒に数えてあげる（2回まちがえたとき）
-function countNkItems() {
+// 一緒に数えてあげる（まちがえたとき）
+function countNkItems(after) {
   const items = [...$('#nkItems').children];
   const clear = () => items.forEach(e => { e.classList.remove('counting'); delete e.dataset.count; });
   speak(['g_kazoete', ...items.map((_, i) => String(i+1))], {
@@ -683,7 +724,7 @@ function countNkItems() {
       const k = i - 1;                       // 先頭は「かぞえて みよう」
       if (k >= 0 && items[k]) { items[k].classList.add('counting'); items[k].dataset.count = String(k+1); }
     },
-    onDone: clear
+    onDone: () => { clear(); if (after) setTimeout(after, 500); }
   });
 }
 
@@ -693,21 +734,183 @@ function nkAnswer(btn, v) {
     nkLock = true;
     btn.classList.add('right');
     sfxStroke();
-    setTimeout(startNkWrite, 320);
+    setTimeout(() => startNkWrite(), 320);
   } else {
     sfxOops(); speak(['p_oshii'], 180);
     btn.classList.add('wrong'); btn.disabled = true;
-    nkMiss++;
+    nkMiss++; nkStreak = 0;
     setTimeout(() => btn.classList.remove('wrong'), 420);
-    if (nkMiss >= 2) setTimeout(countNkItems, 700);
+    if (nkMiss >= 2) { nkDown(); setTimeout(() => countNkItems(), 700); }
   }
 }
 
-// 答えが合っていたら、その数字をなぞり書きする画面へ
-function startNkWrite() {
+function nkDown() { nkLevel = Math.max(nkLevel - 1, 0); nkStreak = 0; }
+// ノーミスで正解。3問続いたら1つむずかしくする
+function nkWin() {
+  if (nkMiss > 0) { nkStreak = 0; return; }
+  if (++nkStreak >= NANKO.up) { nkStreak = 0; nkLevel = Math.min(nkLevel + 1, NANKO.levels.length - 1); }
+}
+
+// 答えの数字を書く画面へ。レベルによって「なぞり書き」か「フリー書き」になる
+function startNkWrite(intro, forceTrace) {
+  nkLock = false;
+  const lv = NANKO.levels[nkLevel];
+  nkFree = !forceTrace && !!lv.free;
+  freeStrokes = []; freeCur = null; freeDrawing = false;
   document.body.classList.add('nkwrite');
+  document.body.classList.toggle('nkfree', nkFree);
   idx = CFG.order.indexOf(String(nkN));
-  setTarget();                                // 数字を読み上げて「を かいてみよう」
+  if (nkFree) {
+    $('#targetNum').textContent = '？';      // 答えは見せない
+    strokeI = 0; cpI = 0; trail = []; doneStrokes = [];
+    fit();
+    speak([...(intro||[]), 'q_nanko']);      // 「なんこ あるかな？ かいてみよう」
+  } else {
+    setTarget(intro);                        // 数字を読み上げて「を かいてみよう」
+  }
+}
+
+// ---- フリー書きの描画 ----
+function drawFree() {
+  const W = TR.w, H = TR.h;
+  ctx.clearRect(0, 0, W, H);
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  // 書く場所の目安になる、うすい枠
+  const m = Math.min(W, H) * 0.07, r = Math.min(W, H) * 0.06;
+  ctx.save();
+  ctx.setLineDash([2*TR.s, 12*TR.s]);
+  ctx.strokeStyle = '#ece3d6'; ctx.lineWidth = 4*TR.s;
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(m, m, W-m*2, H-m*2, r);
+  else ctx.rect(m, m, W-m*2, H-m*2);
+  ctx.stroke();
+  ctx.restore();
+  // 書いた線
+  ctx.strokeStyle = COLORS[0]; ctx.lineWidth = 20*TR.s;
+  const all = freeCur ? freeStrokes.concat([freeCur]) : freeStrokes;
+  all.forEach(st => {
+    if (st.length === 1) {
+      const q = toScreen(st[0]);
+      ctx.beginPath(); ctx.arc(q.x, q.y, ctx.lineWidth/2, 0, 7);
+      ctx.fillStyle = COLORS[0]; ctx.fill();
+    } else { pathOf(st); ctx.stroke(); }
+  });
+}
+
+function clearFree() { freeStrokes = []; freeCur = null; freeDrawing = false; drawFree(); }
+
+// 動作確認用
+window.__nkSet   = lv => { nkLevel = lv; nkStreak = 0; nkMiss = 0; newNanko(); };
+window.__nkFeed  = sts => { freeStrokes = sts.map(st => st.map(p => ({x:p[0], y:p[1]}))); drawFree(); };
+window.__nkGuess = sts => recognize(sts.map(st => st.map(p => ({x:p[0], y:p[1]}))));
+window.__nkJudge = () => judgeFree();
+window.__nkState = () => ({ level:nkLevel, streak:nkStreak, miss:nkMiss, free:nkFree, n:nkN,
+                            strokes:freeStrokes.length, lock:nkLock,
+                            ink:freeStrokes.reduce((a,st)=>a+st.length,0), cls:document.body.className });
+
+// ---- 手書きの見分け（書いた形を 1〜10 のお手本と見くらべる）----
+const RECOG = { size:48, pad:5, lw:5 };
+let NKTPL = null;
+
+function rasterStrokes(strokes) {
+  const S = RECOG.size;
+  const c = document.createElement('canvas'); c.width = S; c.height = S;
+  const g = c.getContext('2d');
+  let x0=1e9, y0=1e9, x1=-1e9, y1=-1e9;
+  strokes.forEach(st => st.forEach(p => {
+    if (p.x<x0) x0=p.x; if (p.y<y0) y0=p.y; if (p.x>x1) x1=p.x; if (p.y>y1) y1=p.y;
+  }));
+  const w = Math.max(x1-x0, 1e-3), h = Math.max(y1-y0, 1e-3);
+  const inner = S - RECOG.pad*2;
+  const sc = Math.min(inner/w, inner/h);
+  const ox = (S - w*sc)/2 - x0*sc, oy = (S - h*sc)/2 - y0*sc;
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  g.strokeStyle = '#000'; g.fillStyle = '#000'; g.lineWidth = RECOG.lw;
+  strokes.forEach(st => {
+    if (st.length === 1) {
+      g.beginPath(); g.arc(st[0].x*sc+ox, st[0].y*sc+oy, RECOG.lw/2, 0, 7); g.fill(); return;
+    }
+    g.beginPath();
+    st.forEach((p, i) => { const X = p.x*sc+ox, Y = p.y*sc+oy; i ? g.lineTo(X,Y) : g.moveTo(X,Y); });
+    g.stroke();
+  });
+  const d = g.getImageData(0,0,S,S).data, bits = new Uint8Array(S*S);
+  for (let i = 0; i < S*S; i++) bits[i] = d[i*4+3] > 60 ? 1 : 0;
+  return bits;
+}
+
+// 形からの距離マップ（線からどれだけ離れているか）
+function distMap(bits) {
+  const S = RECOG.size, INF = 1e6, d = new Float32Array(S*S);
+  for (let i = 0; i < S*S; i++) d[i] = bits[i] ? 0 : INF;
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    const i = y*S+x; let v = d[i];
+    if (x>0)          v = Math.min(v, d[i-1]+1);
+    if (y>0)          v = Math.min(v, d[i-S]+1);
+    if (x>0 && y>0)   v = Math.min(v, d[i-S-1]+1.414);
+    if (x<S-1 && y>0) v = Math.min(v, d[i-S+1]+1.414);
+    d[i] = v;
+  }
+  for (let y = S-1; y >= 0; y--) for (let x = S-1; x >= 0; x--) {
+    const i = y*S+x; let v = d[i];
+    if (x<S-1)            v = Math.min(v, d[i+1]+1);
+    if (y<S-1)            v = Math.min(v, d[i+S]+1);
+    if (x<S-1 && y<S-1)   v = Math.min(v, d[i+S+1]+1.414);
+    if (x>0 && y<S-1)     v = Math.min(v, d[i+S-1]+1.414);
+    d[i] = v;
+  }
+  return d;
+}
+function oneWay(bits, dm) {
+  let s = 0, n = 0;
+  for (let i = 0; i < bits.length; i++) if (bits[i]) { s += dm[i]; n++; }
+  return n ? s/n : 1e6;
+}
+function templates() {
+  if (NKTPL) return NKTPL;
+  NKTPL = {};
+  for (let v = 1; v <= 10; v++) {
+    const b = rasterStrokes(SHAPES[String(v)].map(st => st.dense));
+    NKTPL[String(v)] = { bits:b, dm:distMap(b) };
+  }
+  return NKTPL;
+}
+function recognize(strokes) {
+  const b = rasterStrokes(strokes), dm = distMap(b), T = templates();
+  return Object.keys(T)
+    .map(k => ({ k, s: (oneWay(b, T[k].dm) + oneWay(T[k].bits, dm)) / 2 }))
+    .sort((p, q) => p.s - q.s);
+}
+
+// ---- 「できた」を押したとき ----
+function judgeFree() {
+  if (!nkFree || nkLock) return;
+  const ink = freeStrokes.reduce((n, st) => n + st.length, 0);
+  if (freeStrokes.length === 0 || ink < 5) { speak(['q_nanko']); return; }  // ほとんど書いていない
+  const r = recognize(freeStrokes);
+  window.__nkRecog = r;                                   // 動作確認用
+  const best = r[0], mine = r.find(x => x.k === String(nkN));
+  const ok = best.k === String(nkN) || (mine && mine.s <= best.s * 1.10);
+  if (ok) {
+    nkLock = true; nkFree = false;
+    document.body.classList.remove('nkfree');
+    nkWin();
+    celebrate(() => { if (nankoOn) newNanko(); });
+  } else {
+    nkMiss++; nkStreak = 0;
+    sfxOops(); speak(['p_oshii'], 180);
+    cv.classList.add('shakeit');
+    setTimeout(() => cv.classList.remove('shakeit'), 430);
+    if (nkMiss >= 2) {
+      // 2回めは一緒に数えて、お手本をなぞる形に落とす
+      nkDown();
+      nkFree = false; clearFree();
+      document.body.classList.remove('nkwrite','nkfree');
+      setTimeout(() => { if (nankoOn) countNkItems(() => { if (nankoOn) startNkWrite(null, true); }); }, 600);
+    } else {
+      setTimeout(clearFree, 430);
+    }
+  }
 }
 
 
@@ -987,7 +1190,8 @@ const atHome = () => document.body.classList.contains('home');
 function showHome(intro) {
   stopSpeak();
   quizOn = false; shopOn = false; compareOn = false; orderOn = false; nankoOn = false; dragEl = null;
-  document.body.classList.remove('quiz','shop','qsound','qdots','compare','cbig','csmall','order','odesc','nanko','nkwrite');
+  nkFree = false; freeDrawing = false; freeStrokes = []; freeCur = null;
+  document.body.classList.remove('quiz','shop','qsound','qdots','compare','cbig','csmall','order','odesc','nanko','nkwrite','nkfree');
   document.body.classList.add('home');
   speak([...(intro||[]), V_HOME]);
 }
@@ -1010,9 +1214,11 @@ cv.addEventListener('contextmenu', e => e.preventDefault());
 $('#next').addEventListener('click', () => next(['b_tsugi']));
 $('#prev').addEventListener('click', () => prev(['b_mae']));
 $('#again').addEventListener('click', () => {
+  if (nkFree) { clearFree(); speak(['b_mouichido']); return; }   // 書いたものを消すだけ
   strokeI = 0; cpI = 0; trail = []; doneStrokes = []; draw();
   speak(['b_mouichido', cur(), 'p_kaku']);
 });
+$('#nkDone').addEventListener('click', judgeFree);
 $('#target').addEventListener('click', () => {
   if (shopOn) sayOrder();
   else if (compareOn) sayCompare();

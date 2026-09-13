@@ -224,8 +224,13 @@ body.shop #shop{display:flex}
 .cmpCard.wrong{animation:shake .4s;background:#f3ece2;color:#b6a892}
 .cmpCard.right{background:var(--ok);color:#fff;box-shadow:0 1vmin 0 #34a35c}
 .cmpNumBig{font-size:16vmin;line-height:1}
-.cmpIll{display:grid;gap:.8vmin;place-items:center;place-content:center}
+.cmpIll{display:grid;gap:.8vmin;place-items:center;place-content:center;
+        max-width:100%;max-height:100%;overflow:hidden}
 .cmpIll span{font-size:5.6vmin;line-height:1}
+/* 横に何個ならぶかで字の大きさを変える（10個でも枠に収める） */
+.cmpIll.c3 span{font-size:5.2vmin}
+.cmpIll.c4 span{font-size:4.4vmin}
+.cmpIll.c5 span{font-size:3.8vmin}
 
 /* 絵がいくつか、という数字。正解したときと、2回まちがえたときだけ出す */
 .cmpBadge{
@@ -269,6 +274,9 @@ body.compare #compare{display:flex}
   .cmpCard{min-height:26vmin}
   .cmpNumBig{font-size:13vmin}
   .cmpIll span{font-size:4.6vmin}
+  .cmpIll.c3 span{font-size:4.3vmin}
+  .cmpIll.c4 span{font-size:3.7vmin}
+  .cmpIll.c5 span{font-size:3.2vmin}
   .cmpAskSide i{width:2.6vmin;height:2.6vmin}
 }
 
@@ -421,7 +429,8 @@ body.order #order{display:flex}
 @media (prefers-reduced-motion:reduce){.nkChoice.wrong{animation:none}}
 
 /* お題パネル側の小さな品物（書いているあいだ、何を数えたか見えるように） */
-#nkSide{display:none;grid-template-columns:repeat(5,auto);gap:.8vmin;justify-content:center;margin-top:1.5vmin}
+#nkSide{display:none;grid-template-columns:repeat(5,auto);gap:.8vmin;justify-content:center;
+        margin:1.5vmin 1.5vmin 2.2vmin;max-width:calc(100% - 3vmin);overflow:hidden}
 #nkSide .goods{width:6.5vmin;height:6.5vmin;font-size:4.6vmin;border-radius:1.4vmin;box-shadow:0 .3vmin 0 #e8dfd2}
 
 body.nanko #targetDots,body.nanko #orderItem{display:none}
@@ -432,6 +441,14 @@ body.nanko #board,body.nanko #nav{display:none}
 body.nanko #nanko{display:flex}
 /* なぞり書きの画面に切り替わったとき */
 body.nanko.nkwrite #nanko{display:none}
+/* フリー書き（お手本なし）。「できた」で答え合わせ */
+#nav #nkDone{display:none; width:auto!important; min-width:20vmin; border-radius:6vmin!important;
+        font-family:inherit; font-weight:800; font-size:4.4vmin!important; color:#fff;
+        background:var(--ok)!important; box-shadow:0 .6vmin 0 #34a35c!important; padding:0 3vmin}
+body.nanko.nkfree #nav #nkDone{display:grid}
+body.nanko.nkfree #targetNum{color:var(--guide2)}
+#board.shakeit{animation:shake .4s}
+@media (prefers-reduced-motion:reduce){#board.shakeit{animation:none}}
 body.nanko.nkwrite #board{display:block}
 body.nanko.nkwrite #nav{display:flex}
 body.nanko.nkwrite #prev,body.nanko.nkwrite #next{display:none}
