@@ -326,3 +326,77 @@ body.home #app{display:none}
   display:grid; place-items:center; box-shadow:0 .5vmin 0 #e8dfd2;
 }
 #modes #homeBtn:active{transform:translateY(.5vmin);box-shadow:0 .1vmin 0 #e8dfd2}
+
+/* ===== じゅんばん ===== */
+#order{display:none;position:absolute;inset:0;align-items:center;justify-content:center;padding:3vmin}
+#ordRow{display:flex;gap:3vmin;align-items:center;justify-content:center;
+  width:100%;max-width:120vmin}
+.ordCard{
+  position:relative; overflow:visible;
+  border:none;border-radius:4vmin;background:#fff;color:var(--accent2);
+  box-shadow:0 1vmin 0 #e8dfd2; font-family:inherit; font-weight:800;
+  flex:1 1 0; min-width:0; max-width:26vmin; min-height:32vmin; padding:2vmin;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.2vmin;
+}
+body.odesc .ordCard{color:var(--accent)}
+.ordCard:active{transform:translateY(.6vmin);box-shadow:0 .4vmin 0 #e8dfd2}
+.ordNum{font-size:14vmin;line-height:1}
+.ordNum.wide{font-size:10.5vmin}
+.ordDots{display:grid;gap:.9vmin;justify-content:center;justify-items:center}
+.ordDots i{display:block;width:2.6vmin;height:2.6vmin;border-radius:50%;background:var(--accent2);opacity:.85}
+body.odesc .ordDots i{background:var(--accent)}
+/* 選び終わったカード：緑になって、何番目に選んだかのバッジが出る */
+.ordCard.done{background:var(--ok);color:#fff;box-shadow:0 1vmin 0 #34a35c}
+.ordCard.done .ordDots i{background:#fff;opacity:.95}
+.ordCard.wrong{animation:shake .4s;background:#f3ece2;color:#b6a892}
+/* 2回まちがえたら、次に押すカードが光る */
+.ordCard.hintOn{box-shadow:0 1vmin 0 #e8dfd2, 0 0 0 1vmin #ffd23d; animation:askPulse 1.2s ease-in-out infinite}
+/* 答え合わせで読み上げているカード */
+.ordCard.reading{transform:scale(1.1)}
+@media (prefers-reduced-motion:reduce){
+  .ordCard.wrong,.ordCard.hintOn{animation:none}
+  .ordCard.reading{transform:none}
+}
+.ordBadge{
+  position:absolute; top:-2vmin; left:-2vmin;
+  min-width:7.4vmin; height:7.4vmin; padding:0 .8vmin; box-sizing:border-box;
+  border-radius:50%; background:#fff; color:#2f8f52;
+  font-size:4.4vmin; font-weight:800; line-height:7.4vmin; text-align:center;
+  box-shadow:0 .5vmin 0 rgba(0,0,0,.18);
+  opacity:0; visibility:hidden; transition:opacity .2s;
+}
+.ordCard.done .ordBadge{opacity:1; visibility:visible}
+
+/* 出題の合図。棒の高さが向き、下の数字がタップする順番を表す */
+#ordAsk{display:none; align-items:flex-end; justify-content:center; gap:2vmin; width:100%}
+.ordAskCol{display:flex; flex-direction:column; align-items:center; gap:.8vmin}
+.ordAskCol i{display:block; width:5.4vmin; border-radius:1.2vmin; background:var(--accent2)}
+.ordAskCol b{font-size:4.2vmin; color:#a2917c; line-height:1}
+body.odesc .ordAskCol i{background:var(--accent)}
+
+body.order #targetDots,body.order #orderItem,body.order #targetNum{display:none}
+body.order #ordAsk{display:flex}
+body.order #speak{display:none}
+body.order #bigSpeak{display:none}
+body.order #board,body.order #nav{display:none}
+body.order #order{display:flex}
+
+@media (orientation:portrait){
+  .ordCard{max-width:21vmin;min-height:25vmin}
+  .ordNum{font-size:11vmin}
+  .ordNum.wide{font-size:8.5vmin}
+  .ordDots i{width:2.2vmin;height:2.2vmin}
+  .ordAskCol i{width:4.2vmin}
+}
+
+/* ホームのカードが5枚になったので、はみ出さないように折り返す（3枚＋2枚） */
+#homeCards{flex-wrap:wrap}
+.hcard{flex:0 1 30%; min-width:30vmin}
+.hcard[data-mode=order]{background:#ff6b9d; box-shadow:0 1.4vmin 0 #d94f7c}
+.hcard[data-mode=order]:active{box-shadow:0 .6vmin 0 #d94f7c}
+@media (orientation:portrait){
+  #homeCards{flex-wrap:nowrap; gap:2vmin}
+  .hcard{flex:1 1 auto; min-width:0; padding:1.8vmin 4vmin}
+  .hcard .hicon{font-size:7.5vmin}
+  .hcard .hlabel{font-size:5.4vmin}
+}

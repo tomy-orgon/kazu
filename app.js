@@ -207,7 +207,8 @@ const FALLBACK = { yatta1:'yatta', yatta2:'yatta', yatta3:'yatta',
                    yatta4:'yatta', yatta5:'yatta', yatta6:'yatta',
                    // 念のための保険。q_ookii/q_chiisai は録音済みだが、
                    // 万一ファイルが欠けても「おおい」「すくない」だけは鳴るようにしておく。
-                   q_ookii:'g_ooi', q_chiisai:'g_sukunai' };
+                   q_ookii:'g_ooi', q_chiisai:'g_sukunai',
+                   q_chiisaijun:'q_chiisai', q_ookiijun:'q_ookii' };
 let lastPraise = -1;
 const voices = {};
 let curAudio = null, speakToken = 0;
@@ -449,14 +450,18 @@ function setMode(mode, intro) {
   quizOn = (mode === 'quiz');
   shopOn = (mode === 'shop');
   compareOn = (mode === 'compare');
+  orderOn = (mode === 'order');
   document.body.classList.toggle('quiz', quizOn);
   document.body.classList.toggle('shop', shopOn);
   document.body.classList.toggle('compare', compareOn);
+  document.body.classList.toggle('order', orderOn);
   if (!quizOn) document.body.classList.remove('qsound','qdots');
   if (!compareOn) document.body.classList.remove('cbig','csmall');
+  if (!orderOn) document.body.classList.remove('odesc');
   if (quizOn)         { qN = QUIZ.min; qStreak = 0; newQuestion(intro); }
   else if (shopOn)    { newOrder(intro); }
   else if (compareOn) { cStreak = 0; cLevel = 0; newCompare(intro); }
+  else if (orderOn)   { oStreak = 0; oLevel = 0; newOrderQ(intro); }
   else                { setTarget(intro); }
 }
 
@@ -556,6 +561,159 @@ function cmpAnswer(btn, i) {
     sfxOops(); speak(['p_oshii'], 180);
     btn.classList.add('wrong');
     setTimeout(() => btn.classList.remove('wrong'), 420);
+  }
+}
+
+
+// ===== じゅんばん（ちいさい／おおきい じゅんに タップ）=====
+// 数字カードをバラバラに並べ、小さい順（レベル3からは大きい順も）にタップさせる。
+//
+// むずかしさは3段階。3問続けて正解（ノーミス）すると1つ上がる。
+//   0: 1〜6 から3枚・となり同士が2以上はなれている・カードに●つき
+//   1: 1〜10 から3枚・差1以上・●なし
+//   2: 1〜10 から4枚・小さい順と大きい順をまぜる
+const ORDERQ = {
+  levels: [
+    { min:1, max:6,  count:3, gap:2, dots:true,  dirs:['asc'] },
+    { min:1, max:10, count:3, gap:1, dots:false, dirs:['asc'] },
+    { min:1, max:10, count:4, gap:1, dots:false, dirs:['asc','desc'] },
+  ],
+  up: 3,           // 何問続けて正解したら次の段階へ
+};
+let orderOn = false, oLevel = 0, oStreak = 0, oMiss = 0, oLock = false;
+let oDir = 'asc', oSeq = [], oStep = 0;
+
+function gapOk(a, g) { for (let i = 1; i < a.length; i++) if (a[i]-a[i-1] < g) return false; return true; }
+
+function pickNumbers(L) {
+  const pool = []; for (let v = L.min; v <= L.max; v++) pool.push(v);
+  let picked, guard = 0;
+  do { picked = shuffle(pool.slice()).slice(0, L.count).sort((a,b) => a-b); }
+  while (!gapOk(picked, L.gap) && ++guard < 400);
+  return picked;
+}
+
+// 出題の合図。棒の高さが「ちいさい→おおきい」の向きを表し、下の数字がタップする順番
+// （数字は必ず左から 1・2・3…。ちいさい順なら棒は右上がり、おおきい順なら右下がり）
+function buildOrdAsk(n, dir) {
+  const box = $('#ordAsk'); box.innerHTML = '';
+  for (let i = 0; i < n; i++) {
+    const col = document.createElement('span'); col.className = 'ordAskCol';
+    const bar = document.createElement('i');
+    const step = (dir === 'asc') ? i : (n - 1 - i);
+    bar.style.height = (5 + step * 4.4) + 'vmin';
+    const num = document.createElement('b'); num.textContent = String(i+1);
+    col.appendChild(bar); col.appendChild(num); box.appendChild(col);
+  }
+}
+
+function makeOrdCard(v, withDots) {
+  const b = document.createElement('button');
+  b.className = 'ordCard'; b.dataset.v = String(v);
+  const badge = document.createElement('span'); badge.className = 'ordBadge';
+  const num = document.createElement('span');
+  num.className = 'ordNum' + (v >= 10 ? ' wide' : ''); num.textContent = String(v);
+  b.appendChild(badge); b.appendChild(num);
+  if (withDots) {
+    const d = document.createElement('span'); d.className = 'ordDots';
+    // 数えやすい並べ方（くらべると同じ）
+    const COLS = {1:1,2:2,3:3,4:2,5:5,6:3,7:4,8:4,9:3,10:5};
+    d.style.gridTemplateColumns = 'repeat(' + (COLS[v] || 5) + ',1fr)';
+    for (let i = 0; i < v; i++) d.appendChild(document.createElement('i'));
+    b.appendChild(d);
+  }
+  b.addEventListener('click', () => ordAnswer(b, v));
+  return b;
+}
+
+function newOrderQ(intro) {
+  oLock = false; oMiss = 0; oStep = 0;
+  const L = ORDERQ.levels[Math.min(oLevel, ORDERQ.levels.length - 1)];
+  oDir = L.dirs[Math.floor(Math.random()*L.dirs.length)];
+  document.body.classList.toggle('odesc', oDir === 'desc');
+
+  const nums = pickNumbers(L);
+  oSeq = (oDir === 'asc') ? nums.slice() : nums.slice().reverse();
+  window.__ordSeq = oSeq.slice();          // 動作確認用
+
+  buildOrdAsk(nums.length, oDir);
+  const row = $('#ordRow'); row.innerHTML = '';
+  shuffle(nums.slice()).forEach(v => row.appendChild(makeOrdCard(v, L.dots)));
+
+  speak([...(intro||[]), oDir === 'asc' ? 'q_chiisaijun' : 'q_ookiijun'], 250);
+}
+
+function sayOrderQ() { speak([oDir === 'asc' ? 'q_chiisaijun' : 'q_ookiijun']); }
+
+function hintOrd() {
+  const row = $('#ordRow');
+  row.querySelectorAll('.hintOn').forEach(e => e.classList.remove('hintOn'));
+  const el = [...row.children].find(e => Number(e.dataset.v) === oSeq[oStep]);
+  if (el) el.classList.add('hintOn');
+}
+
+// 並び替えアニメーション（いまの位置を覚えてから並べ替え、ずれた分を戻しながら動かす）
+function flipReorder(row, sorted, done) {
+  const first = new Map();
+  [...row.children].forEach(el => first.set(el, el.getBoundingClientRect()));
+  sorted.forEach(el => row.appendChild(el));
+  [...row.children].forEach(el => {
+    const f = first.get(el), l = el.getBoundingClientRect();
+    const dx = f.left - l.left, dy = f.top - l.top;
+    el.style.transition = 'none';
+    el.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+  });
+  requestAnimationFrame(() => {
+    [...row.children].forEach(el => {
+      el.style.transition = 'transform .5s cubic-bezier(.2,.8,.3,1)';
+      el.style.transform = 'translate(0,0)';
+    });
+    setTimeout(() => {
+      [...row.children].forEach(el => { el.style.transition = ''; el.style.transform = ''; });
+      if (done) done();
+    }, 540);
+  });
+}
+
+function finishOrder() {
+  const row = $('#ordRow');
+  const sorted = oSeq.map(v => [...row.children].find(e => Number(e.dataset.v) === v));
+  flipReorder(row, sorted, () => {
+    // 並んだ順に1つずつ読み上げる（読んでいるカードが大きくなる）
+    speak(oSeq.map(String), {
+      onStep: (n, i) => {
+        [...row.children].forEach(e => e.classList.remove('reading'));
+        if (sorted[i]) sorted[i].classList.add('reading');
+      },
+      onDone: () => {
+        [...row.children].forEach(e => e.classList.remove('reading'));
+        if (oMiss === 0 && ++oStreak >= ORDERQ.up) {
+          oStreak = 0;
+          oLevel = Math.min(oLevel + 1, ORDERQ.levels.length - 1);
+        }
+        celebrate(() => { if (orderOn) newOrderQ(); });
+      }
+    });
+  });
+}
+
+function ordAnswer(btn, v) {
+  if (oLock || btn.classList.contains('done')) return;
+  if (v === oSeq[oStep]) {
+    oStep++;
+    btn.classList.add('done');
+    btn.querySelector('.ordBadge').textContent = String(oStep);
+    $('#ordRow').querySelectorAll('.hintOn').forEach(e => e.classList.remove('hintOn'));
+    if (oStep >= oSeq.length) { oLock = true; sfxStroke(); finishOrder(); }
+    else { sfxTick(); speak([String(v)]); }
+  } else {
+    // 3回目からは、正解のカード以外は反応しない（かならず成功して終われるように）
+    if (oMiss >= 3) { hintOrd(); return; }
+    oStreak = 0; oMiss++;
+    sfxOops(); speak(['p_oshii'], 180);
+    btn.classList.add('wrong');
+    setTimeout(() => btn.classList.remove('wrong'), 420);
+    if (oMiss >= 2) { oLevel = Math.max(oLevel - 1, 0); hintOrd(); }
   }
 }
 
@@ -672,14 +830,14 @@ function checkOrder() {
 //   g_nanishite … 「なにを して あそぶ？」
 //   b_ouchi     … 「おうちに もどる」
 const V_HOME = 'g_nanishite', V_BACK = 'b_ouchi';
-const MODE_VOICE = { write:'m_kaku', quiz:'m_erabu', shop:'m_omise', compare:'m_kurabu' };
+const MODE_VOICE = { write:'m_kaku', quiz:'m_erabu', shop:'m_omise', compare:'m_kurabu', order:'m_junban' };
 
 const atHome = () => document.body.classList.contains('home');
 
 function showHome(intro) {
   stopSpeak();
-  quizOn = false; shopOn = false; compareOn = false; dragEl = null;
-  document.body.classList.remove('quiz','shop','qsound','qdots','compare','cbig','csmall');
+  quizOn = false; shopOn = false; compareOn = false; orderOn = false; dragEl = null;
+  document.body.classList.remove('quiz','shop','qsound','qdots','compare','cbig','csmall','order','odesc');
   document.body.classList.add('home');
   speak([...(intro||[]), V_HOME], 120);
 }
@@ -708,6 +866,7 @@ $('#again').addEventListener('click', () => {
 $('#target').addEventListener('click', () => {
   if (shopOn) sayOrder();
   else if (compareOn) sayCompare();
+  else if (orderOn) sayOrderQ();
   else if (!quizOn) speak([cur(), 'p_kaku']);
 });
 $('#cmpA').addEventListener('click', () => cmpAnswer($('#cmpA'), 0));
