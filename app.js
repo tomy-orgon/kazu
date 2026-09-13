@@ -850,7 +850,11 @@ function ordAnswer(btn, v) {
     btn.classList.add('done');
     btn.querySelector('.ordBadge').textContent = String(oStep);
     $('#ordRow').querySelectorAll('.hintOn').forEach(e => e.classList.remove('hintOn'));
-    if (oStep >= oSeq.length) { oLock = true; sfxStroke(); finishOrder(); }
+    // 最後の1枚も数字を読み上げてから、答え合わせ（並び替え＋読み上げ）に進む
+    if (oStep >= oSeq.length) {
+      oLock = true; sfxTick();
+      speak([String(v)], { onDone: () => { if (orderOn) finishOrder(); } });
+    }
     else { sfxTick(); speak([String(v)]); }
   } else {
     // 3回目からは、正解のカード以外は反応しない（かならず成功して終われるように）
