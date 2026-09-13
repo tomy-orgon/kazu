@@ -204,7 +204,10 @@ const PRAISE = [
   { file:'yatta6', text:'かんぺき！' },
 ];
 const FALLBACK = { yatta1:'yatta', yatta2:'yatta', yatta3:'yatta',
-                   yatta4:'yatta', yatta5:'yatta', yatta6:'yatta' };
+                   yatta4:'yatta', yatta5:'yatta', yatta6:'yatta',
+                   // 念のための保険。q_ookii/q_chiisai は録音済みだが、
+                   // 万一ファイルが欠けても「おおい」「すくない」だけは鳴るようにしておく。
+                   q_ookii:'g_ooi', q_chiisai:'g_sukunai' };
 let lastPraise = -1;
 const voices = {};
 let curAudio = null, speakToken = 0;
@@ -445,12 +448,115 @@ function answer(btn, v) {
 function setMode(mode, intro) {
   quizOn = (mode === 'quiz');
   shopOn = (mode === 'shop');
+  compareOn = (mode === 'compare');
   document.body.classList.toggle('quiz', quizOn);
   document.body.classList.toggle('shop', shopOn);
+  document.body.classList.toggle('compare', compareOn);
   if (!quizOn) document.body.classList.remove('qsound','qdots');
-  if (quizOn)      { qN = QUIZ.min; qStreak = 0; newQuestion(intro); }
-  else if (shopOn) { newOrder(intro); }
-  else             { setTarget(intro); }
+  if (!compareOn) document.body.classList.remove('cbig','csmall');
+  if (quizOn)         { qN = QUIZ.min; qStreak = 0; newQuestion(intro); }
+  else if (shopOn)    { newOrder(intro); }
+  else if (compareOn) { cStreak = 0; cLevel = 0; newCompare(intro); }
+  else                { setTarget(intro); }
+}
+
+
+// ===== くらべる（どちらが おおい／すくない）=====
+// 毎回「数字」と「イラストの個数」を1つずつ組み合わせて出す
+// （どちらが数字/イラストになるかはランダム）— 数字と実際の量を結びつける
+//
+// むずかしさは3段階。3問続けて正解すると1つ上がる（まちがえたら下がる）。
+//   0: 1〜6 で 差4以上   1: 1〜10 で 差2以上   2: 1〜10 で 差1以上
+const COMPARE = {
+  levels: [ {min:1,max:6,gap:4}, {min:1,max:10,gap:2}, {min:1,max:10,gap:1} ],
+  up: 3,          // 何問続けて正解したら次の段階へ
+};
+let compareOn = false, cKind = 'big', cAnswerIdx = 0, cLock = false;
+let cStreak = 0, cLevel = 0, cMiss = 0;
+
+// カードの中身を作る。isNum なら数字、そうでなければ絵を value 個ならべる
+function fillCmpSide(el, isNum, value, icon) {
+  el.className = 'cmpCard';
+  el.dataset.num = String(value);
+  el.dataset.kind = isNum ? 'num' : 'ill';
+  el.innerHTML = '';
+  if (isNum) {
+    const t = document.createElement('span');
+    t.className = 'cmpNumBig'; t.textContent = value;
+    el.appendChild(t);
+  } else {
+    const wrap = document.createElement('div');
+    wrap.className = 'cmpIll';
+    // 数えやすい形に並べる（6は3×2、9は3×3、10は5×2 など）
+    const COLS = {1:1,2:2,3:3,4:2,5:5,6:3,7:4,8:4,9:3,10:5};
+    wrap.style.gridTemplateColumns = 'repeat(' + (COLS[value] || 5) + ',1fr)';
+    for (let i = 0; i < value; i++) {
+      const s = document.createElement('span');
+      s.textContent = icon;
+      wrap.appendChild(s);
+    }
+    el.appendChild(wrap);
+    const badge = document.createElement('span');
+    badge.className = 'cmpBadge'; badge.textContent = value;
+    el.appendChild(badge);
+  }
+}
+
+// 絵のほうに「いくつ？」の数字を出す（正解のとき・2回まちがえたとき）
+function revealCmpCounts() {
+  [$('#cmpA'), $('#cmpB')].forEach(el => el.classList.add('show-num'));
+}
+
+function newCompare(intro) {
+  cLock = false; cMiss = 0;
+  cKind = Math.random() < 0.5 ? 'big' : 'small';
+  document.body.classList.toggle('cbig', cKind === 'big');
+  document.body.classList.toggle('csmall', cKind === 'small');
+  $('#targetNum').textContent = cKind === 'big' ? '⬆️' : '⬇️';
+
+  // 段階に合わせて、差のひらいた2つを選ぶ
+  const L = COMPARE.levels[Math.min(cLevel, COMPARE.levels.length - 1)];
+  const span = L.max - L.min + 1;
+  let na, nb, guard = 0;
+  do {
+    na = L.min + Math.floor(Math.random()*span);
+    nb = L.min + Math.floor(Math.random()*span);
+  } while (Math.abs(na - nb) < L.gap && ++guard < 200);
+  if (na === nb) nb = na === L.max ? na - 1 : na + 1;
+
+  cAnswerIdx = (cKind === 'big') ? (na > nb ? 0 : 1) : (na < nb ? 0 : 1);
+
+  const numSide = Math.random() < 0.5 ? 0 : 1;   // 0=Aが数字/Bが絵, 1=その逆
+  const icon = SHOP.goods[Math.floor(Math.random()*SHOP.goods.length)].emoji;
+  fillCmpSide($('#cmpA'), numSide === 0, na, icon);
+  fillCmpSide($('#cmpB'), numSide === 1, nb, icon);
+
+  speak([...(intro||[]), cKind === 'big' ? 'q_ookii' : 'q_chiisai'], 250);
+}
+
+function sayCompare() { speak([cKind === 'big' ? 'q_ookii' : 'q_chiisai']); }
+
+function cmpAnswer(btn, i) {
+  if (cLock) return;
+  if (i === cAnswerIdx) {
+    cLock = true;
+    btn.classList.add('right');
+    revealCmpCounts();
+    if (cMiss === 0 && ++cStreak >= COMPARE.up) {
+      cStreak = 0;
+      cLevel = Math.min(cLevel + 1, COMPARE.levels.length - 1);
+    }
+    celebrate(() => { if (compareOn) newCompare(); });
+  } else {
+    cStreak = 0; cMiss++;
+    if (cMiss >= 2) {
+      cLevel = Math.max(cLevel - 1, 0);
+      revealCmpCounts();          // 2回まちがえたら、絵の数を数字で見せる
+    }
+    sfxOops(); speak(['p_oshii'], 180);
+    btn.classList.add('wrong');
+    setTimeout(() => btn.classList.remove('wrong'), 420);
+  }
 }
 
 
@@ -536,7 +642,7 @@ function checkOrder() {
   if (shopLock) return;
   const items = [...basketEl().children];
   shopLock = true; $('#done').disabled = true;
-  const clear = () => items.forEach(el => el.classList.remove('counting'));
+  const clear = () => items.forEach(el => { el.classList.remove('counting'); delete el.dataset.count; });
   if (!items.length) {
     speak(['g_dekita', 'g_sukunai', 'g_chigau'], { onDone: () => { shopLock = false; $('#done').disabled = false; } });
     return;
@@ -546,7 +652,7 @@ function checkOrder() {
     onStep: (n, i) => {
       clear();
       const k = i - 2;                       // 先頭2つは「できた」「かぞえて みよう」
-      if (k >= 0 && items[k]) items[k].classList.add('counting');
+      if (k >= 0 && items[k]) { items[k].classList.add('counting'); items[k].dataset.count = String(k + 1); }
     },
     onDone: () => {
       clear();
@@ -566,14 +672,14 @@ function checkOrder() {
 //   g_nanishite … 「なにを して あそぶ？」
 //   b_ouchi     … 「おうちに もどる」
 const V_HOME = 'g_nanishite', V_BACK = 'b_ouchi';
-const MODE_VOICE = { write:'m_kaku', quiz:'m_erabu', shop:'m_omise' };
+const MODE_VOICE = { write:'m_kaku', quiz:'m_erabu', shop:'m_omise', compare:'m_kurabu' };
 
 const atHome = () => document.body.classList.contains('home');
 
 function showHome(intro) {
   stopSpeak();
-  quizOn = false; shopOn = false; dragEl = null;
-  document.body.classList.remove('quiz','shop','qsound','qdots');
+  quizOn = false; shopOn = false; compareOn = false; dragEl = null;
+  document.body.classList.remove('quiz','shop','qsound','qdots','compare','cbig','csmall');
   document.body.classList.add('home');
   speak([...(intro||[]), V_HOME], 120);
 }
@@ -599,7 +705,13 @@ $('#again').addEventListener('click', () => {
   strokeI = 0; cpI = 0; trail = []; doneStrokes = []; draw();
   speak(['b_mouichido', cur(), 'p_kaku']);
 });
-$('#target').addEventListener('click', () => { if (shopOn) sayOrder(); else if (!quizOn) speak([cur(), 'p_kaku']); });
+$('#target').addEventListener('click', () => {
+  if (shopOn) sayOrder();
+  else if (compareOn) sayCompare();
+  else if (!quizOn) speak([cur(), 'p_kaku']);
+});
+$('#cmpA').addEventListener('click', () => cmpAnswer($('#cmpA'), 0));
+$('#cmpB').addEventListener('click', () => cmpAnswer($('#cmpB'), 1));
 $('#bigSpeak').addEventListener('click', e => { e.stopPropagation(); speak([qAnswer, 'p_dore']); });
 document.querySelectorAll('.hcard').forEach(b =>
   b.addEventListener('click', () => enterMode(b.dataset.mode)));

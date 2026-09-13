@@ -27,6 +27,9 @@
     <button class="hcard" data-mode="shop">
       <span class="hicon">🍎</span><span class="hlabel">おみせ</span>
     </button>
+    <button class="hcard" data-mode="compare">
+      <span class="hicon">⚖️</span><span class="hlabel">くらべる</span>
+    </button>
   </div>
   <button id="homeSpeak" aria-label="もういちど きく">🔊</button>
 </div>
@@ -39,6 +42,10 @@
       <div id="targetNum">1</div>
       <div id="targetDots"></div>
       <div id="orderItem"></div>
+      <div id="cmpAsk" aria-hidden="true">
+        <span class="cmpAskSide many"><i></i><i></i><i></i><i></i><i></i><i></i></span>
+        <span class="cmpAskSide few"><i></i><i></i></span>
+      </div>
       <button id="speak" aria-label="よみあげ">🔊</button>
       <button id="bigSpeak" aria-label="もういちど きく">🔊</button>
     </div>
@@ -59,6 +66,12 @@
       <div id="basketWrap">
         <div id="basket"></div>
         <button id="done">できた</button>
+      </div>
+    </div>
+    <div id="compare">
+      <div id="cmpRow">
+        <button class="cmpCard" id="cmpA"></button>
+        <button class="cmpCard" id="cmpB"></button>
       </div>
     </div>
   </div>

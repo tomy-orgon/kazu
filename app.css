@@ -1,6 +1,6 @@
 :root{
   --bg:#fff8ee; --ink:#3b3028; --card:#ffffff;
-  --accent:#ff8a3d; --accent2:#4aa3ff; --ok:#3fc06d;
+  --accent:#ff8a3d; --accent2:#4aa3ff; --ok:#3fc06d; --accent3:#b46fe0;
   --guide:#e2d9cd; --guide2:#c9bdae;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -183,6 +183,7 @@ body.shop #shop{display:flex}
 #done:disabled{opacity:.45}
 
 .goods{
+  position:relative;
   font-size:8.5vmin;line-height:1;width:12vmin;height:12vmin;
   display:grid;place-items:center;border-radius:2.4vmin;background:#fff;
   box-shadow:0 .5vmin 0 #e8dfd2; touch-action:none; user-select:none;
@@ -191,6 +192,15 @@ body.shop #shop{display:flex}
 .goods.dragging{position:fixed;z-index:50;box-shadow:0 1.6vmin 2vmin rgba(0,0,0,.25);transform:scale(1.15)}
 .goods.counting{background:var(--ok);transform:scale(1.2)}
 @media (prefers-reduced-motion:reduce){.goods.counting{transform:none}}
+.goods.counting::after{
+  content:attr(data-count);
+  position:absolute; top:-1.6vmin; right:-1.6vmin; z-index:1;
+  min-width:6.2vmin; height:6.2vmin; padding:0 .6vmin; box-sizing:border-box;
+  border-radius:50%; background:#fff; color:#2f8f52;
+  font-family:inherit; font-size:4.4vmin; font-weight:800;
+  line-height:6.2vmin; text-align:center;
+  box-shadow:0 .4vmin 0 rgba(0,0,0,.18);
+}
 
 @media (orientation:portrait){
   body.shop #targetNum{font-size:14vh}
@@ -198,6 +208,68 @@ body.shop #shop{display:flex}
   #shelf{flex:1 1 46%}
   #basketWrap{flex:0 0 44%}
   .goods{width:15vmin;height:15vmin;font-size:10vmin}
+}
+
+/* ===== くらべる ===== */
+#compare{display:none;position:absolute;inset:0;align-items:center;justify-content:center;padding:3vmin}
+#cmpRow{display:flex;gap:4vmin;align-items:center;justify-content:center;width:100%}
+.cmpCard{
+  position:relative; overflow:visible;
+  border:none;border-radius:4vmin;background:#fff;color:var(--accent3);
+  box-shadow:0 1vmin 0 #e8dfd2; font-family:inherit; font-weight:800;
+  flex:1 1 0; max-width:34vmin; min-height:34vmin;padding:2vmin;
+  line-height:1; display:grid;place-items:center;
+}
+.cmpCard:active{transform:translateY(.6vmin);box-shadow:0 .4vmin 0 #e8dfd2}
+.cmpCard.wrong{animation:shake .4s;background:#f3ece2;color:#b6a892}
+.cmpCard.right{background:var(--ok);color:#fff;box-shadow:0 1vmin 0 #34a35c}
+.cmpNumBig{font-size:16vmin;line-height:1}
+.cmpIll{display:grid;gap:.8vmin;place-items:center;place-content:center}
+.cmpIll span{font-size:5.6vmin;line-height:1}
+
+/* 絵がいくつか、という数字。正解したときと、2回まちがえたときだけ出す */
+.cmpBadge{
+  position:absolute; bottom:-2.2vmin; left:50%; transform:translateX(-50%);
+  min-width:8vmin; height:8vmin; padding:0 1vmin; box-sizing:border-box;
+  border-radius:4vmin; background:var(--accent3); color:#fff;
+  font-size:5vmin; font-weight:800; line-height:8vmin; text-align:center;
+  box-shadow:0 .5vmin 0 rgba(0,0,0,.18);
+  opacity:0; visibility:hidden; transition:opacity .25s;
+}
+.cmpCard.show-num .cmpBadge{opacity:1; visibility:visible}
+
+/* 問題の合図。文字が読めなくても「どっちを えらぶか」が絵で分かるようにする */
+#cmpAsk{display:none; align-items:center; justify-content:center; gap:3.4vmin; width:100%}
+.cmpAskSide{
+  display:grid; gap:1vmin; place-content:center;
+  padding:2.4vmin; border-radius:3vmin;
+  background:#f3ece2; border:.9vmin solid transparent; opacity:.4;
+}
+.cmpAskSide.many{grid-template-columns:repeat(3,auto)}
+.cmpAskSide.few {grid-template-columns:repeat(1,auto)}
+.cmpAskSide i{display:block; width:3.2vmin; height:3.2vmin; border-radius:50%; background:#b6a892}
+body.cbig   .cmpAskSide.many,
+body.csmall .cmpAskSide.few{
+  opacity:1; background:#fff; border-color:var(--accent3);
+  animation:askPulse 1.5s ease-in-out infinite;
+}
+body.cbig   .cmpAskSide.many i,
+body.csmall .cmpAskSide.few  i{background:var(--accent3)}
+@keyframes askPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+@media (prefers-reduced-motion:reduce){.cmpAskSide{animation:none!important}}
+
+body.compare #targetDots,body.compare #orderItem,body.compare #targetNum{display:none}
+body.compare #cmpAsk{display:flex}
+body.compare #speak{display:none}
+body.compare #bigSpeak{display:none}
+body.compare #board,body.compare #nav{display:none}
+body.compare #compare{display:flex}
+
+@media (orientation:portrait){
+  .cmpCard{min-height:26vmin}
+  .cmpNumBig{font-size:13vmin}
+  .cmpIll span{font-size:4.6vmin}
+  .cmpAskSide i{width:2.6vmin;height:2.6vmin}
 }
 
 /* ===== ホーム画面 ===== */
@@ -220,15 +292,17 @@ body.home #app{display:none}
   font-family:inherit; color:#fff; padding:4vmin 2vmin;
   display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1.4vmin;
 }
-.hcard .hicon{font-size:16vmin;line-height:1}
-.hcard .hlabel{font-size:6.5vmin;font-weight:800;line-height:1}
+.hcard .hicon{font-size:13vmin;line-height:1}
+.hcard .hlabel{font-size:5.4vmin;font-weight:800;line-height:1}
 .hcard[data-mode=write]{background:var(--accent); box-shadow:0 1.4vmin 0 #e07a33}
 .hcard[data-mode=quiz]{background:var(--accent2);box-shadow:0 1.4vmin 0 #3a86d6}
 .hcard[data-mode=shop]{background:var(--ok);     box-shadow:0 1.4vmin 0 #34a35c}
+.hcard[data-mode=compare]{background:var(--accent3);box-shadow:0 1.4vmin 0 #8a4bbd}
 .hcard:active{transform:translateY(.8vmin)}
 .hcard[data-mode=write]:active{box-shadow:0 .6vmin 0 #e07a33}
 .hcard[data-mode=quiz]:active {box-shadow:0 .6vmin 0 #3a86d6}
 .hcard[data-mode=shop]:active {box-shadow:0 .6vmin 0 #34a35c}
+.hcard[data-mode=compare]:active{box-shadow:0 .6vmin 0 #8a4bbd}
 
 #homeSpeak{
   border:none; background:#fff0e0; width:12vmin; height:12vmin; border-radius:50%;
@@ -238,10 +312,10 @@ body.home #app{display:none}
 
 @media (orientation:portrait){
   #homeCards{flex-direction:column; max-width:none}
-  .hcard{flex-direction:row; gap:5vmin; padding:3vmin 4vmin; justify-content:flex-start}
-  .hcard .hicon{font-size:12vmin}
-  .hcard .hlabel{font-size:8vmin}
-  #homeTitle{font-size:7vmin}
+  .hcard{flex-direction:row; gap:5vmin; padding:2.2vmin 4vmin; justify-content:flex-start}
+  .hcard .hicon{font-size:9vmin}
+  .hcard .hlabel{font-size:6.4vmin}
+  #homeTitle{font-size:6vmin}
 }
 
 /* ===== おうちボタン（各モード） ===== */
