@@ -858,8 +858,17 @@ function fitDraw() {
   if (r.width < 2 || r.height < 2) return;
   cv.width = Math.round(r.width*dpr); cv.height = Math.round(r.height*dpr);
   ctx.setTransform(dpr,0,0,dpr,0,0);
-  const s = Math.min(r.width/300, r.height/300);
-  DTR = { s, ox:(r.width-300*s)/2, oy:(r.height-300*s)/2, w:r.width, h:r.height };
+  // 下の道具バーに隠れない範囲に、お手本（0..300の正方形）を収める
+  const tb = $('#drawTools').getBoundingClientRect();
+  const reserve = tb.height > 0 ? Math.max(0, r.bottom - tb.top) + 4 : 0;
+  const pad = Math.min(r.width, r.height) * 0.03;
+  const availH = Math.max(60, r.height - reserve);
+  const s = Math.max(0.1, Math.min((r.width - pad*2)/300, (availH - pad*2)/300));
+  DTR = { s, ox:(r.width-300*s)/2, oy:(availH-300*s)/2, w:r.width, h:r.height };
+  // 線画（SVG）も、塗る位置とぴったり同じ場所・大きさに置く
+  const ov = $('#picOverlay');
+  ov.style.left = DTR.ox + 'px'; ov.style.top = DTR.oy + 'px';
+  ov.style.width = ov.style.height = (300*s) + 'px';
   renderDraw();
 }
 const dToScreen = p => ({ x: p.x*DTR.s + DTR.ox, y: p.y*DTR.s + DTR.oy });
