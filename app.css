@@ -516,7 +516,7 @@ body.draw.drawpicker #colorPicker{display:block}
 .picThumb .cpic .dot{fill:#3a3a3a;stroke:none}
 
 /* --- 描く本体：色ぬりのお手本（キャンバスの上に重ねる線画） --- */
-#picOverlay{display:none;position:absolute;inset:0;pointer-events:none}
+#picOverlay{display:none;position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible}
 body.draw.drawcanvas.drawcolor #picOverlay{display:block}
 #picOverlay .cpic{fill:none;stroke:#3a3a3a;stroke-width:9;stroke-linecap:round;stroke-linejoin:round}
 #picOverlay .cpic .dot{fill:#3a3a3a;stroke:none}
@@ -557,6 +557,10 @@ body.draw.drawcanvas #drawTools{display:flex}
 #eraserBtn.on{background:var(--accent);color:#fff}
 #eraserBtn:active,#clearBtn:active,.sizeBtn:active,.colorBtn:active{transform:translateY(.4vmin)}
 
+/* 横持ちは道具を1列に並べて、絵の場所を広くとる */
+@media (orientation:landscape){
+  body.draw.drawcanvas #drawTools{flex-direction:row;justify-content:center;flex-wrap:wrap}
+}
 @media (orientation:portrait){
   .dmCard{flex:0 1 40vmin;padding:4vmin 2vmin}
   .picThumb{width:24vmin;height:24vmin}
