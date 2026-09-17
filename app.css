@@ -4,7 +4,7 @@
   --guide:#e2d9cd; --guide2:#c9bdae; --accent4:#2bb3a3;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none;touch-action:none}
+html,body{height:100%;height:100dvh;margin:0;overflow:hidden;overscroll-behavior:none;touch-action:none}
 body{
   background:var(--bg); color:var(--ink);
   font-family:"Hiragino Maru Gothic ProN","Rounded Mplus 1c",-apple-system,"Noto Sans JP",sans-serif;
