@@ -174,7 +174,7 @@ function draw() {
   }
 }
 function loop(){
-  if (!atHome() && !nkFree && !drawing && strokeI < shape().length && cpI === 0) draw();
+  if (!atHome() && !drawOn && !nkFree && !drawing && strokeI < shape().length && cpI === 0) draw();
   requestAnimationFrame(loop);
 }
 
@@ -333,6 +333,15 @@ function resetStroke(soft) {
 // ===== 入力 =====
 function onDown(e) {
   ac(); // 最初のタッチで音を有効化
+  if (drawOn) {
+    if (drawStage !== 'canvas') return;
+    dCur = { pts:[dToVB(e.clientX, e.clientY)], color: eraserOn ? '#000' : penColor,
+             size: PEN_SIZES[penSize], erase: eraserOn };
+    dDrawing = true;
+    cv.setPointerCapture(e.pointerId);
+    renderDraw();
+    return;
+  }
   if (nkFree) {                       // フリー書き：線の上をたどらせず、自由に書かせる
     if (nkLock) return;
     freeCur = [toVB(e.clientX, e.clientY)];
@@ -351,6 +360,13 @@ function onDown(e) {
   advance(p);
 }
 function onMove(e) {
+  if (drawOn) {
+    if (!dDrawing || !dCur) return;
+    const q = dToVB(e.clientX, e.clientY);
+    const l = dCur.pts[dCur.pts.length-1];
+    if (!l || Math.hypot(q.x-l.x, q.y-l.y) > 1.2) { dCur.pts.push(q); renderDraw(); }
+    return;
+  }
   if (nkFree) {
     if (!freeDrawing) return;
     const q = toVB(e.clientX, e.clientY);
@@ -399,6 +415,13 @@ function finishStroke() {
   else { sfxStroke(); draw(); }
 }
 function onUp() {
+  if (drawOn) {
+    if (!dDrawing) return;
+    dDrawing = false;
+    if (dCur) dStrokes.push(dCur);
+    dCur = null; renderDraw();
+    return;
+  }
   if (nkFree) {
     if (!freeDrawing) return;
     freeDrawing = false;
@@ -529,20 +552,24 @@ function setMode(mode, intro) {
   compareOn = (mode === 'compare');
   orderOn = (mode === 'order');
   nankoOn = (mode === 'nanko');
+  drawOn = (mode === 'draw');
   document.body.classList.toggle('quiz', quizOn);
   document.body.classList.toggle('shop', shopOn);
   document.body.classList.toggle('compare', compareOn);
   document.body.classList.toggle('order', orderOn);
   document.body.classList.toggle('nanko', nankoOn);
+  document.body.classList.toggle('draw', drawOn);
   if (!quizOn) document.body.classList.remove('qsound','qdots');
   if (!compareOn) document.body.classList.remove('cbig','csmall');
   if (!orderOn) document.body.classList.remove('odesc');
   if (!nankoOn) { document.body.classList.remove('nkwrite','nkfree'); nkFree = false; }
+  if (!drawOn) { document.body.classList.remove('drawmenu','drawpicker','drawcanvas','drawfree','drawcolor'); }
   if (quizOn)         { qN = QUIZ.min; qStreak = 0; newQuestion(intro); }
   else if (shopOn)    { newOrder(intro); }
   else if (compareOn) { cStreak = 0; cLevel = 0; newCompare(intro); }
   else if (orderOn)   { oStreak = 0; oLevel = 0; newOrderQ(intro); }
   else if (nankoOn)   { nkLevel = 0; nkStreak = 0; newNanko(intro); }
+  else if (drawOn)    { drawKind = null; curPic = null; drawStage = 'menu'; applyDrawStage(); speak(intro||[]); }
   else                { setTarget(intro); }
 }
 
@@ -661,6 +688,24 @@ let nankoOn = false, nkN = 0, nkGood = null, nkLock = false, nkMiss = 0;
 let nkLevel = 0, nkStreak = 0;
 let nkFree = false, freeStrokes = [], freeCur = null, freeDrawing = false;
 const NK_COLS = {1:1,2:2,3:3,4:2,5:5,6:3,7:4,8:4,9:3,10:5};
+
+// ===== おえかき（じゆうに かく／ぬりえ）=====
+const DRAW_COLORS = [
+  { hex:'#3b3028', key:'c_kuro',     label:'くろ' },
+  { hex:'#ff5252', key:'c_aka',      label:'あか' },
+  { hex:'#ff9d3d', key:'c_orange',   label:'オレンジ' },
+  { hex:'#ffd23d', key:'c_kiiro',    label:'きいろ' },
+  { hex:'#3fc06d', key:'c_midori',   label:'みどり' },
+  { hex:'#4aa3ff', key:'c_mizuiro',  label:'みずいろ' },
+  { hex:'#9b6bde', key:'c_murasaki', label:'むらさき' },
+  { hex:'#ff6bb0', key:'c_pink',     label:'ピンク' },
+  { hex:'#a9713f', key:'c_chairo',   label:'ちゃいろ' },
+];
+const PEN_SIZES = { s:10, m:20, l:36 };
+let drawOn = false, drawKind = null, drawStage = 'menu', curPic = null;
+let dStrokes = [], dCur = null, dDrawing = false;
+let penColor = DRAW_COLORS[1].hex, penSize = 'm', eraserOn = false;
+let DTR = { s:1, ox:0, oy:0, w:0, h:0 };
 
 function renderNkItems(box, n, emoji) {
   box.innerHTML = '';
@@ -798,6 +843,113 @@ function drawFree() {
 }
 
 function clearFree() { freeStrokes = []; freeCur = null; freeDrawing = false; drawFree(); }
+
+// ---- おえかきキャンバスの座標変換（0..300 の正方形を画面に収める）----
+function fitDraw() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+  const r = cv.getBoundingClientRect();
+  if (r.width < 2 || r.height < 2) return;
+  cv.width = Math.round(r.width*dpr); cv.height = Math.round(r.height*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  const s = Math.min(r.width/300, r.height/300);
+  DTR = { s, ox:(r.width-300*s)/2, oy:(r.height-300*s)/2, w:r.width, h:r.height };
+  renderDraw();
+}
+const dToScreen = p => ({ x: p.x*DTR.s + DTR.ox, y: p.y*DTR.s + DTR.oy });
+function dToVB(clientX, clientY) {
+  const r = cv.getBoundingClientRect();
+  return { x: (clientX - r.left - DTR.ox)/DTR.s, y: (clientY - r.top - DTR.oy)/DTR.s };
+}
+function renderDraw() {
+  ctx.clearRect(0, 0, DTR.w, DTR.h);
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  const all = dCur ? dStrokes.concat([dCur]) : dStrokes;
+  all.forEach(st => {
+    ctx.globalCompositeOperation = st.erase ? 'destination-out' : 'source-over';
+    const lw = st.size * DTR.s;
+    if (st.pts.length === 1) {
+      const q = dToScreen(st.pts[0]);
+      ctx.beginPath(); ctx.arc(q.x, q.y, lw/2, 0, 7);
+      ctx.fillStyle = st.color; ctx.fill();
+    } else {
+      ctx.strokeStyle = st.color; ctx.lineWidth = lw;
+      ctx.beginPath();
+      st.pts.forEach((p,i) => { const q = dToScreen(p); i ? ctx.lineTo(q.x,q.y) : ctx.moveTo(q.x,q.y); });
+      ctx.stroke();
+    }
+  });
+  ctx.globalCompositeOperation = 'source-over';
+}
+function clearDraw() { dStrokes = []; dCur = null; dDrawing = false; renderDraw(); }
+
+// ---- 画面の切り替え（メニュー→（ぬりえだけ）えらぶ→キャンバス）----
+function applyDrawStage() {
+  document.body.classList.toggle('drawmenu',   drawStage === 'menu');
+  document.body.classList.toggle('drawpicker', drawStage === 'picker');
+  document.body.classList.toggle('drawcanvas', drawStage === 'canvas');
+  document.body.classList.toggle('drawfree',  drawKind === 'free');
+  document.body.classList.toggle('drawcolor', drawKind === 'color');
+}
+function renderPicker() {
+  const grid = $('#pickerGrid'); grid.innerHTML = '';
+  [['やさしい',0], ['ふつう',1], ['むずかしい',2]].forEach(([label, lv]) => {
+    const h = document.createElement('div'); h.className = 'pickerGroupLabel'; h.textContent = label;
+    grid.appendChild(h);
+    const row = document.createElement('div'); row.className = 'pickerGroup';
+    window.COLOR_PICS.filter(p => p.level === lv).forEach(p => {
+      const b = document.createElement('button'); b.className = 'picThumb';
+      b.innerHTML = `<svg viewBox="0 0 300 300"><g class="cpic">${p.svg}</g></svg><span>${p.label}</span>`;
+      b.addEventListener('click', () => chooseColorPic(p));
+      row.appendChild(b);
+    });
+    grid.appendChild(row);
+  });
+}
+function chooseColorPic(p) {
+  curPic = p;
+  clearDraw();
+  drawStage = 'canvas';
+  applyDrawStage();
+  $('#picOverlay').querySelector('g').innerHTML = p.svg;
+  fitDraw();
+  speak([p.id]);
+}
+function chooseDrawMode(kind) {
+  drawKind = kind;
+  if (kind === 'free') {
+    curPic = null;
+    $('#picOverlay').querySelector('g').innerHTML = '';
+    clearDraw();
+    drawStage = 'canvas';
+    applyDrawStage();
+    fitDraw();
+    speak(['m_jiyunikaku']);
+  } else {
+    drawStage = 'picker';
+    applyDrawStage();
+    renderPicker();
+    speak(['m_nurie']);
+  }
+}
+function drawBack() {
+  if (drawStage === 'canvas' && drawKind === 'color') { drawStage = 'picker'; renderPicker(); }
+  else { drawStage = 'menu'; drawKind = null; curPic = null; }
+  applyDrawStage();
+}
+function renderColorRow() {
+  const row = $('#colorRow'); row.innerHTML = '';
+  DRAW_COLORS.forEach(c => {
+    const b = document.createElement('button'); b.className = 'colorBtn'; b.style.background = c.hex;
+    b.dataset.c = c.hex;
+    b.addEventListener('click', () => { penColor = c.hex; eraserOn = false; syncDrawTools(); speak([c.key]); });
+    row.appendChild(b);
+  });
+}
+function syncDrawTools() {
+  $('#colorRow').querySelectorAll('.colorBtn').forEach(b => b.classList.toggle('on', !eraserOn && b.dataset.c === penColor));
+  $('#toolRow').querySelectorAll('.sizeBtn').forEach(b => b.classList.toggle('on', b.dataset.size === penSize));
+  $('#eraserBtn').classList.toggle('on', eraserOn);
+}
 
 // 動作確認用
 window.__nkSet   = lv => { nkLevel = lv; nkStreak = 0; nkMiss = 0; newNanko(); };
@@ -1183,7 +1335,7 @@ function checkOrder() {
 //   g_nanishite … 「なにを して あそぶ？」
 //   b_ouchi     … 「おうちに もどる」
 const V_HOME = 'g_nanishite', V_BACK = 'b_ouchi';
-const MODE_VOICE = { write:'m_kaku', quiz:'m_erabu', shop:'m_omise', compare:'m_kurabu', order:'m_junban', nanko:'m_nanko' };
+const MODE_VOICE = { write:'m_kaku', quiz:'m_erabu', shop:'m_omise', compare:'m_kurabu', order:'m_junban', nanko:'m_nanko', draw:'m_oekaki' };
 
 const atHome = () => document.body.classList.contains('home');
 
@@ -1191,7 +1343,9 @@ function showHome(intro) {
   stopSpeak();
   quizOn = false; shopOn = false; compareOn = false; orderOn = false; nankoOn = false; dragEl = null;
   nkFree = false; freeDrawing = false; freeStrokes = []; freeCur = null;
-  document.body.classList.remove('quiz','shop','qsound','qdots','compare','cbig','csmall','order','odesc','nanko','nkwrite','nkfree');
+  drawOn = false; drawKind = null; drawStage = 'menu'; curPic = null; dStrokes = []; dCur = null; dDrawing = false;
+  document.body.classList.remove('quiz','shop','qsound','qdots','compare','cbig','csmall','order','odesc','nanko','nkwrite','nkfree',
+    'draw','drawmenu','drawpicker','drawcanvas','drawfree','drawcolor');
   document.body.classList.add('home');
   speak([...(intro||[]), V_HOME]);
 }
@@ -1237,8 +1391,20 @@ $('#done').addEventListener('click', checkOrder);
 window.addEventListener('pointermove', onGoodMove);
 window.addEventListener('pointerup', onGoodUp);
 window.addEventListener('pointercancel', onGoodUp);
-window.addEventListener('resize', fit);
-window.addEventListener('orientationchange', () => setTimeout(fit, 250));
+function refit(){ if (drawOn && drawStage === 'canvas') fitDraw(); else fit(); }
+window.addEventListener('resize', refit);
+window.addEventListener('orientationchange', () => setTimeout(refit, 250));
+
+// ---- おえかき ----
+document.querySelectorAll('.dmCard').forEach(b =>
+  b.addEventListener('click', () => { ac(); chooseDrawMode(b.dataset.drawmode); }));
+$('#drawBackBtn').addEventListener('click', () => { ac(); drawBack(); speak(['b_modoru']); });
+const SIZE_VOICE = { s:'hosoi', m:'futsuu', l:'futoi' };
+$('#toolRow').querySelectorAll('.sizeBtn').forEach(b =>
+  b.addEventListener('click', () => { penSize = b.dataset.size; syncDrawTools(); speak([SIZE_VOICE[penSize]]); }));
+$('#eraserBtn').addEventListener('click', () => { eraserOn = !eraserOn; syncDrawTools(); if (eraserOn) speak(['keshigomu']); });
+$('#clearBtn').addEventListener('click', () => { clearDraw(); });
+renderColorRow(); syncDrawTools();
 
 initVoices();
 renderStars(); loop();

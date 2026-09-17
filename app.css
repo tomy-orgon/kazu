@@ -1,7 +1,7 @@
 :root{
   --bg:#fff8ee; --ink:#3b3028; --card:#ffffff;
   --accent:#ff8a3d; --accent2:#4aa3ff; --ok:#3fc06d; --accent3:#b46fe0;
-  --guide:#e2d9cd; --guide2:#c9bdae;
+  --guide:#e2d9cd; --guide2:#c9bdae; --accent4:#2bb3a3;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none;touch-action:none}
@@ -334,6 +334,16 @@ body.home #app{display:none}
   display:grid; place-items:center; box-shadow:0 .5vmin 0 #e8dfd2;
 }
 #modes #homeBtn:active{transform:translateY(.5vmin);box-shadow:0 .1vmin 0 #e8dfd2}
+#modes #drawBackBtn{
+  display:none; flex:0 0 auto; width:11vmin; height:11vmin; padding:0; border-radius:50%;
+  border:none; background:#f6efe4; color:inherit; font-size:5vmin;
+  place-items:center; box-shadow:0 .5vmin 0 #e8dfd2;
+}
+#modes #drawBackBtn:active{transform:translateY(.5vmin);box-shadow:0 .1vmin 0 #e8dfd2}
+body.draw:not(.drawmenu) #modes #drawBackBtn{display:grid}
+
+.hcard[data-mode=draw]{background:var(--accent4); box-shadow:0 1.4vmin 0 #1f8c80}
+.hcard[data-mode=draw]:active{box-shadow:0 .6vmin 0 #1f8c80}
 
 /* ===== じゅんばん ===== */
 #order{display:none;position:absolute;inset:0;align-items:center;justify-content:center;padding:3vmin}
@@ -465,4 +475,90 @@ body.nanko.nkwrite #nkSide{display:grid}
   #nkItems{gap:1vmin;padding:1.8vmin}
   #nkSide .goods{width:5.5vmin;height:5.5vmin;font-size:3.8vmin}
   .hnote{font-size:3vmin}
+}
+
+/* ===== おえかき ===== */
+body.draw #target,body.draw #stars{display:none}
+body.draw #side{flex:0 0 auto}
+body.draw #board,body.draw #nav{display:none}
+body.draw.drawcanvas #board{display:block}
+
+/* --- モードえらび（じゆうがき／ぬりえ） --- */
+#drawMenu{display:none;position:absolute;inset:0;align-items:center;justify-content:center;gap:4vmin;padding:4vmin;flex-wrap:wrap}
+body.draw.drawmenu #drawMenu{display:flex}
+.dmCard{
+  flex:0 1 34vmin; min-width:26vmin; border:none; border-radius:5vmin;
+  font-family:inherit; color:#fff; padding:5vmin 2vmin;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1.8vmin;
+}
+.dmCard .hicon{font-size:15vmin;line-height:1}
+.dmCard .hlabel{font-size:5.6vmin;font-weight:800;line-height:1}
+.dmCard:active{transform:translateY(.8vmin)}
+.dmCard[data-drawmode=free]{background:var(--accent2); box-shadow:0 1.4vmin 0 #3a86d6}
+.dmCard[data-drawmode=free]:active{box-shadow:0 .6vmin 0 #3a86d6}
+.dmCard[data-drawmode=color]{background:#f0a83d; box-shadow:0 1.4vmin 0 #c98527}
+.dmCard[data-drawmode=color]:active{box-shadow:0 .6vmin 0 #c98527}
+
+/* --- ぬりえ：えらぶ画面 --- */
+#colorPicker{display:none;position:absolute;inset:0;padding:2vmin 2.4vmin;overflow:auto}
+body.draw.drawpicker #colorPicker{display:block}
+.pickerGroupLabel{font-size:3.6vmin;font-weight:800;color:#a2917c;margin:1.6vmin 0 1vmin}
+.pickerGroup{display:flex;flex-wrap:wrap;gap:2vmin;justify-content:flex-start}
+.picThumb{
+  border:none;border-radius:3vmin;background:#fff;box-shadow:0 .7vmin 0 #e8dfd2;
+  width:19vmin;height:19vmin;padding:1vmin;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:.4vmin;font-family:inherit;
+}
+.picThumb:active{transform:translateY(.5vmin);box-shadow:0 .2vmin 0 #e8dfd2}
+.picThumb svg{width:100%;flex:1;min-height:0}
+.picThumb span{font-size:2.6vmin;color:#a2917c;font-weight:800;line-height:1}
+.picThumb .cpic{fill:none;stroke:#3a3a3a;stroke-width:11;stroke-linecap:round;stroke-linejoin:round}
+.picThumb .cpic .dot{fill:#3a3a3a;stroke:none}
+
+/* --- 描く本体：色ぬりのお手本（キャンバスの上に重ねる線画） --- */
+#picOverlay{display:none;position:absolute;inset:0;pointer-events:none}
+body.draw.drawcanvas.drawcolor #picOverlay{display:block}
+#picOverlay .cpic{fill:none;stroke:#3a3a3a;stroke-width:9;stroke-linecap:round;stroke-linejoin:round}
+#picOverlay .cpic .dot{fill:#3a3a3a;stroke:none}
+
+/* --- 道具バー（色・ふとさ・けしごむ・ぜんぶけす） --- */
+#drawTools{
+  display:none; position:absolute; left:0; right:0; bottom:1.4vmin;
+  flex-direction:column; align-items:center; gap:1.2vmin; pointer-events:none;
+}
+body.draw.drawcanvas #drawTools{display:flex}
+#colorRow{
+  pointer-events:auto; display:flex; gap:1.4vmin; padding:1.2vmin 1.8vmin;
+  background:#fff; border-radius:6vmin; box-shadow:0 .6vmin 0 #e8dfd2; overflow-x:auto; max-width:92vw;
+}
+.colorBtn{
+  flex:0 0 auto; width:7.4vmin; height:7.4vmin; border-radius:50%;
+  border:.6vmin solid #fff; box-shadow:0 0 0 .35vmin #e8dfd2;
+}
+.colorBtn.on{box-shadow:0 0 0 .5vmin #3b3028}
+#toolRow{
+  pointer-events:auto; display:flex; align-items:center; gap:1.4vmin;
+  padding:1.2vmin 1.8vmin; background:#fff; border-radius:6vmin; box-shadow:0 .6vmin 0 #e8dfd2;
+}
+.sizeBtn{
+  border:none;background:#f6efe4;border-radius:50%;width:8.4vmin;height:8.4vmin;
+  display:grid;place-items:center;box-shadow:inset 0 0 0 .3vmin #e8dfd2;
+}
+.sizeBtn i{display:block;border-radius:50%;background:#7a6a56}
+.sizeBtn[data-size=s] i{width:2vmin;height:2vmin}
+.sizeBtn[data-size=m] i{width:3.6vmin;height:3.6vmin}
+.sizeBtn[data-size=l] i{width:5.4vmin;height:5.4vmin}
+.sizeBtn.on{background:var(--accent2)}
+.sizeBtn.on i{background:#fff}
+#eraserBtn,#clearBtn{
+  border:none;border-radius:50%;width:8.4vmin;height:8.4vmin;font-size:4.2vmin;
+  background:#f6efe4;display:grid;place-items:center;box-shadow:inset 0 0 0 .3vmin #e8dfd2;
+}
+#eraserBtn.on{background:var(--accent);color:#fff}
+#eraserBtn:active,#clearBtn:active,.sizeBtn:active,.colorBtn:active{transform:translateY(.4vmin)}
+
+@media (orientation:portrait){
+  .dmCard{flex:0 1 40vmin;padding:4vmin 2vmin}
+  .picThumb{width:24vmin;height:24vmin}
+  #colorRow{max-width:88vw}
 }

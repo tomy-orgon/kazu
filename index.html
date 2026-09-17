@@ -37,6 +37,9 @@
       <span class="hicon">🧮</span><span class="hlabel">なんこかな</span>
       <span class="hnote">※むずかしい</span>
     </button>
+    <button class="hcard" data-mode="draw">
+      <span class="hicon">🎨</span><span class="hlabel">おえかき</span>
+    </button>
   </div>
   <button id="homeSpeak" aria-label="もういちど きく">🔊</button>
 </div>
@@ -44,6 +47,7 @@
   <div id="side">
     <div id="modes">
       <button id="homeBtn" aria-label="おうちに もどる">🏠</button>
+      <button id="drawBackBtn" aria-label="もどる">↩️</button>
     </div>
     <div class="panel" id="target">
       <div id="targetNum">1</div>
@@ -91,12 +95,29 @@
         <button class="cmpCard" id="cmpB"></button>
       </div>
     </div>
+    <div id="drawMenu">
+      <button class="dmCard" data-drawmode="free"><span class="hicon">🖌️</span><span class="hlabel">じゆうに かく</span></button>
+      <button class="dmCard" data-drawmode="color"><span class="hicon">🖍️</span><span class="hlabel">ぬりえ</span></button>
+    </div>
+    <div id="colorPicker"><div id="pickerGrid"></div></div>
+    <svg id="picOverlay" viewBox="0 0 300 300" preserveAspectRatio="xMidYMid meet"><g class="cpic"></g></svg>
+    <div id="drawTools">
+      <div id="colorRow"></div>
+      <div id="toolRow">
+        <button class="sizeBtn" data-size="s" aria-label="ほそい"><i></i></button>
+        <button class="sizeBtn" data-size="m" aria-label="ふつう"><i></i></button>
+        <button class="sizeBtn" data-size="l" aria-label="ふとい"><i></i></button>
+        <button id="eraserBtn" aria-label="けしごむ">🧹</button>
+        <button id="clearBtn" aria-label="ぜんぶけす">🗑️</button>
+      </div>
+    </div>
   </div>
 </div>
 <div id="reward"><div id="rewardText"></div></div>
 <canvas id="confetti"></canvas>
 <script src="voices.js"></script>
 <script src="strokes.js"></script>
+<script src="coloring.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
