@@ -217,9 +217,6 @@ const FALLBACK = { yatta1:'yatta', yatta2:'yatta', yatta3:'yatta',
                    q_chiisaijun:'q_chiisai', q_ookiijun:'q_ookii',
                    // 万一ファイルが欠けたときの保険
                    m_nanko:'p_ikutsu', q_nanko:'p_ikutsu' };
-// 録音に次の言葉の頭が混ざっている声は、ここの秒数で切って鳴らす（色の名前）
-const VOICE_TRIM = { c_kuro:0.56, c_aka:0.65, c_orange:0.66, c_kiiro:0.62,
-                     c_midori:0.61, c_mizuiro:0.90, c_murasaki:0.78, c_pink:0.40 };
 let lastPraise = -1;
 const voices = {};
 let curAudio = null, speakToken = 0;
@@ -255,8 +252,7 @@ function playBuf(name, onEnd) {
   const src = a.createBufferSource();
   src.buffer = buf; src.connect(a.destination);
   src.onended = () => { if (curSrc === src) curSrc = null; if (onEnd) onEnd(); };
-  const trim = VOICE_TRIM[name];
-  try { if (trim) src.start(0, 0, Math.min(trim, buf.duration)); else src.start(); } catch(e) { return false; }
+  try { src.start(); } catch(e) { return false; }
   curSrc = src;
   return true;
 }
@@ -310,7 +306,6 @@ function speak(names, opts = {}) {
     let fin = false;
     const next = () => { if (fin) return; fin = true; step(); };
     a.onended = next; a.onerror = skip;
-    if (VOICE_TRIM[n]) setTimeout(() => { if (my === speakToken && !fin) { try { a.pause(); } catch(e){} next(); } }, VOICE_TRIM[n]*1000);
     try { a.currentTime = 0; const r = a.play(); if (r && r.catch) r.catch(skip); }
     catch(e) { skip(); }
   };
