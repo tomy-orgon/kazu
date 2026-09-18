@@ -512,14 +512,15 @@ body.draw.drawpicker #colorPicker{display:block}
 .picThumb:active{transform:translateY(.5vmin);box-shadow:0 .2vmin 0 #e8dfd2}
 .picThumb svg{width:100%;flex:1;min-height:0}
 .picThumb span{font-size:2.6vmin;color:#a2917c;font-weight:800;line-height:1}
-.picThumb .cpic{fill:none;stroke:#3a3a3a;stroke-width:11;stroke-linecap:round;stroke-linejoin:round}
-.picThumb .cpic .dot{fill:#3a3a3a;stroke:none}
+.picThumb .cpic{fill:#a99e8e;stroke:none}
+.picThumb .cpic .dot{fill:#a99e8e;stroke:none}
 
 /* --- 描く本体：色ぬりのお手本（キャンバスの上に重ねる線画） --- */
 #picOverlay{display:none;position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible}
 body.draw.drawcanvas.drawcolor #picOverlay{display:block}
-#picOverlay .cpic{fill:none;stroke:#3a3a3a;stroke-width:9;stroke-linecap:round;stroke-linejoin:round}
-#picOverlay .cpic .dot{fill:#3a3a3a;stroke:none}
+/* なぞって塗るので、お手本の線は薄い色にする */
+#picOverlay .cpic{fill:#c7bfb2;stroke:none}
+#picOverlay .cpic .dot{fill:#c7bfb2;stroke:none}
 
 /* --- 道具バー（色・ふとさ・けしごむ・ぜんぶけす） --- */
 #drawTools{
