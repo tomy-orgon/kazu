@@ -515,9 +515,12 @@ body.draw.drawpicker #colorPicker{display:block}
 .picThumb .cpic{fill:#a99e8e;stroke:none}
 .picThumb .cpic .dot{fill:#a99e8e;stroke:none}
 
-/* --- 描く本体：色ぬりのお手本（キャンバスの上に重ねる線画） --- */
-#picOverlay{display:none;position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+/* --- 描く本体：色ぬりのお手本（キャンバスの下に敷く線画） --- */
+/* あとから塗った線がお手本より上に来るよう、z-index を負にしてキャンバスの下に沈める */
+#picOverlay{display:none;position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:-1}
 body.draw.drawcanvas.drawcolor #picOverlay{display:block}
+/* お手本が下にあるので、その上のキャンバスは背景を透明にして透けて見えるようにする */
+body.draw.drawcanvas.drawcolor #board{background:transparent}
 /* なぞって塗るので、お手本の線は薄い色にする */
 #picOverlay .cpic{fill:#c7bfb2;stroke:none}
 #picOverlay .cpic .dot{fill:#c7bfb2;stroke:none}
